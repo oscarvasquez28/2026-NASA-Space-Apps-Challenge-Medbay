@@ -1,0 +1,85 @@
+# ==============================================================================
+# Astronaut Health Monitoring & Autonomous Triage System
+# Local Docker Compose Orchestration (GCP Cloud Run Compatible Service Split)
+# ==============================================================================
+# Two isolated container services:
+#   1. backend  -> Python/FastAPI service built from ./backend/Dockerfile (port 8080)
+#   2. frontend -> Placeholder container until ./frontend stack & Dockerfile are defined
+# ==============================================================================
+
+name: ${PROJECT_NAME:-astronaut-triage-system}
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-astronaut-triage-backend:local}
+    container_name: astronaut-triage-backend
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+      - path: ./backend/.env
+        required: false
+    environment:
+      PORT: "8080"
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      TRIAGE_MODE: ${TRIAGE_MODE:-deterministic}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+      GCP_REGION: ${GCP_REGION:-us-central1}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      VERTEX_AI_MODEL: ${VERTEX_AI_MODEL:-gemini-2.5-flash}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - triage-net
+    restart: unless-stopped
+
+  frontend:
+    # NOTE: ./frontend/ is intentionally empty (only .gitkeep) until the
+    # frontend tech stack and UI design are finalized. Once ./frontend/Dockerfile
+    # is created, replace `image:` below with:
+    #   build:
+    #     context: ./frontend
+    #     dockerfile: Dockerfile
+    # and map "${FRONTEND_PORT:-3000}:8080" to match GCP Cloud Run conventions.
+    image: ${FRONTEND_IMAGE:-nginx:1.27-alpine}
+    container_name: astronaut-triage-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      INTERNAL_BACKEND_URL: http://backend:8080
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - triage-net
+    restart: unless-stopped
+
+networks:
+  triage-net:
+    driver: bridge
