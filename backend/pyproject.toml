@@ -1,0 +1,9 @@
+[project]
+name = "astronaut-triage-backend"
+version = "0.1.0"
+description = "Backend API, AI reasoning, and autonomous triage engine for the Astronaut Health Monitoring & Autonomous Triage System."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
