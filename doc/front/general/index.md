@@ -1,10 +1,11 @@
 # Frontend General Documentation Router (`doc/front/general/index.md`)
 
-> **Current Status:** Uninitialized (`frontend/` contains only `.gitkeep`).  
+> **Current Status:** MECHAVIS-style lab console — Next.js 16 App Router + React 19 + TS + Tailwind 4 + R3F/drei + Zustand + Recharts in `frontend/`.  
 > **Context-Saving Rule:** Read only the file below for general frontend shell and backend integration constraints.
 
 ## Routing Table
 
 | Topic | Read this file | Mapped Code |
 | :--- | :--- | :--- |
-| Pending stack checklist, container contract & backend API boundary | [`architecture.md`](architecture.md) | `frontend/` (pending) |
+| Stack, routes, providers/stores/hooks, runtime config, API boundary & known contract gaps | [`architecture.md`](architecture.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` |
+| MECHAVIS design blueprint this UI replicates | [`../mechavis-design-reference.md`](../mechavis-design-reference.md) | `frontend/app/globals.css`, `frontend/components/` |
