@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 import { Disclaimer, Eyebrow } from "@/components/ui/primitives";
 import { useAICompanion } from "@/hooks/useAICompanion";
@@ -293,7 +294,13 @@ export function ChatPanel({
               )}
             </div>
 
-            <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+            {m.role === "assistant" ? (
+              <div className="md-body">
+                <ReactMarkdown>{m.text}</ReactMarkdown>
+              </div>
+            ) : (
+              <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+            )}
 
             {m.response && m.response.recommendedActions && m.response.recommendedActions.length > 0 && (
               <ul

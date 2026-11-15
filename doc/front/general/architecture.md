@@ -40,7 +40,8 @@ frontend/
 │   │                             #   procedural (shared toolkit), suit-geometry (EVA suit),
 │   │                             #   organ-geometry (procedural anatomy), skin-geometry,
 │   │                             #   viewer-toolbar, zone/organ tooltips, shared-gallery, fallback-figure
-│   └── widgets/                  # ZoneInspector, ChatPanel (+ AUTO TTS & viseme sync), TelemetryLogger,
+│   └── widgets/                  # ZoneInspector, ChatPanel (+ AUTO TTS & viseme sync,
+│                                 #   markdown-rendered assistant replies), TelemetryLogger,
 │                                 #   TrendsChart (with 95% CI), ChecklistWidget (+ 12-Skin Suit Locker),
 │                                 #   PrizeWheel (check-in reward drum — COMMON/RARE/LEGENDARY)
 ├── types/health.ts               # Domain types + Phase 1–4 backend DTO mirrors
