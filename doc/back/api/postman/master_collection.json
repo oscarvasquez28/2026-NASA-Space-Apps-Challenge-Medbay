@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "master-astronaut-triage-api-v1",
     "name": "Astronaut Health Monitoring & Autonomous Triage API - Master Collection",
-    "description": "Master unified Postman collection uniting all 28 requests across Phase 1, Phase 2, Phase 3, and Phase 4. Fully asserted for HTTP 200 and standardized status, high_level, and technical fields.",
+    "description": "Master unified Postman collection uniting all 29 requests across Phases 1-4 plus database seeder snapshot reset. Fully asserted for HTTP 200 and standardized status, high_level, and technical fields.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -1420,6 +1420,48 @@
             "v1",
             "telemedicine",
             "flush"
+          ]
+        }
+      }
+    },
+    {
+      "name": "29. Tests - Restore Database Seeder Snapshot",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Database snapshot restores nominal baseline sample data\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"nominal\");",
+              "    pm.expect(json.restored).to.eql(true);",
+              "    pm.expect(json.default_astronaut_id).to.eql(\"AST-01\");",
+              "    pm.expect(json.default_location_setting).to.eql(\"Space Station [0g]\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.seeded_counts.telemetry_records).to.be.at.least(6);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/tests/dbsnapshot",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "tests",
+            "dbsnapshot"
           ]
         }
       }

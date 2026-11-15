@@ -103,6 +103,11 @@
 - **Request Body:** `TelemedicineFlushRequest` (`astronaut_id`, `packet_ids`, `force_flush`, `ground_station`).
 - **Response (`200 OK`):** `TelemedicineFlushResponse` with `status`, `high_level`, `technical`, `flushed_count`, `remaining_pending_count`, `ground_station`, `transmitted_at`, and `flushed_packets`.
 
+### `PUT /api/v1/tests/dbsnapshot` (`backend/app/api/routes/tests.py`)
+- **Purpose:** Restores runtime database tables (`telemedicine_alerts`, `telemetry_records`, `gamification_profiles`, `location_contexts`, and verified `medical_knowledge_chunks`) back to the clean baseline seeder snapshot for repeatable test runs and live judge demonstrations. (`PATCH` and `POST` are also accepted on the same path as hidden convenience aliases.)
+- **Request Body:** None required.
+- **Response (`200 OK`):** `DatabaseSnapshotRestoreResponse` containing `status` (`"nominal"`), `high_level`, `technical`, `restored` (`true`), `restored_at`, `default_astronaut_id` (`"AST-01"`), `default_location_setting` (`"Space Station [0g]"`), and `seeded_counts`.
+
 
 
 
