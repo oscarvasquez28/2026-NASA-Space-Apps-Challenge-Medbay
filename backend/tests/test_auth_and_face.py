@@ -62,6 +62,9 @@ async def test_full_auth_face_recognition_checkin_and_gamification_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """End-to-end test covering registration, face table mapping, identification, idle/daily check-in, and prize skin sync."""
+    # Pin the spec cadence so the weekly assertion holds under any WHEEL_CADENCE_DAYS env.
+    monkeypatch.setattr(auth_service, "wheel_every_n", lambda: 7)
+
     # Reset DB snapshot so operator tables start clean
     snap = await async_client.put("/api/v1/tests/dbsnapshot")
     assert snap.status_code == 200
@@ -175,10 +178,9 @@ async def test_full_auth_face_recognition_checkin_and_gamification_flow(
     assert id_blank.status_code == 200
     assert id_blank.json()["status"] == "no_face"
 
-    # 7. Idempotent check-ins + streak + 5th check-in earns a wheel spin
-    for offset, day_str in enumerate(
-        ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14"]
-    ):
+    # 7. Idempotent check-ins + streak + 7th consecutive check-in earns a spin
+    days = ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16"]
+    for offset, day_str in enumerate(days):
         ci = await async_client.post(
             "/api/v1/auth/checkin",
             json={"user_id": alice["id"], "day": day_str},
@@ -187,12 +189,13 @@ async def test_full_auth_face_recognition_checkin_and_gamification_flow(
         ci_data = ci.json()
         assert ci_data["is_new_day"] is True
         assert ci_data["streak"] == offset + 1
-        assert ci_data["earned_spin"] is (offset == 4)
+        # Weekly cadence: the spin lands on the 7th consecutive day only.
+        assert ci_data["earned_spin"] is (offset == 6)
 
     # Repeat same day -> idempotent
     ci_dup = await async_client.post(
         "/api/v1/auth/checkin",
-        json={"user_id": alice["id"], "day": "2026-11-14"},
+        json={"user_id": alice["id"], "day": "2026-11-16"},
     )
     assert ci_dup.status_code == 200
     assert ci_dup.json()["is_new_day"] is False
@@ -218,7 +221,7 @@ async def test_full_auth_face_recognition_checkin_and_gamification_flow(
     )
     assert gam_resp.status_code == 200
     gam_data = gam_resp.json()
-    assert gam_data["readiness_streak_days"] == 5
+    assert gam_data["readiness_streak_days"] == 7
     assert gam_data["equipped_skin"]["skin_id"] == "skin_mars_vanguard"
     unlocked_ids = [s["skin_id"] for s in gam_data["catalog"] if s["unlocked"]]
     assert "skin_mars_vanguard" in unlocked_ids

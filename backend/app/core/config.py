@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     face_model_dir: str = Field(default="/app/models/face", alias="FACE_MODEL_DIR")
     face_match_threshold: float = Field(default=0.363, alias="FACE_MATCH_THRESHOLD")
 
+    # Weekly check-in bonus: one wheel spin per N consecutive check-in days.
+    # Spec cadence is 7; set to 1 in dev/test environments to try the wheel
+    # on the first check-in of the day.
+    wheel_cadence_days: int = Field(default=7, ge=1, alias="WHEEL_CADENCE_DAYS")
+
 
     @property
     def cors_origins(self) -> list[str]:

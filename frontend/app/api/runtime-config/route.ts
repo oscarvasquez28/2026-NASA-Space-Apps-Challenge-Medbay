@@ -25,5 +25,14 @@ export function GET() {
       ? "mock"
       : "rest";
 
-  return NextResponse.json({ apiUrl, dataProvider });
+  // Consecutive check-in days per wheel spin — mirrors the backend's
+  // WHEEL_CADENCE_DAYS so the client and server agree on spin entitlement.
+  const wheelCadenceDays = Math.max(
+    1,
+    Number(process.env.WHEEL_CADENCE_DAYS) ||
+      Number(process.env.NEXT_PUBLIC_WHEEL_CADENCE_DAYS) ||
+      7,
+  );
+
+  return NextResponse.json({ apiUrl, dataProvider, wheelCadenceDays });
 }

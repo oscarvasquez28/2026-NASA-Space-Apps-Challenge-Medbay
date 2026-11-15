@@ -41,7 +41,10 @@ from app.gamification.service import get_or_create_profile
 
 logger = logging.getLogger(__name__)
 
-WHEEL_EVERY_N = 5
+
+def wheel_every_n() -> int:
+    """Consecutive check-in days required per wheel spin (settings-driven)."""
+    return max(1, get_settings().wheel_cadence_days)
 
 
 def _to_user_schema(user: OperatorUserRecord) -> OperatorUserSchema:
@@ -81,6 +84,21 @@ def compute_streak(days: Set[str], reference_day: str) -> int:
         streak += 1
         cursor -= 1
     return streak
+
+
+def earned_spins(day_set: Set[str]) -> int:
+    """Wheel milestones: one spin for every WHEEL_CADENCE_DAYS consecutive
+    check-in days, counted per run (a gap resets progress toward the next
+    bonus)."""
+    run = 0
+    earned = 0
+    prev: str | None = None
+    for day in sorted(day_set):
+        run = run + 1 if prev is not None and _day_offset(day, -1) == prev else 1
+        prev = day
+        if run % wheel_every_n() == 0:
+            earned += 1
+    return earned
 
 
 def _resolve_threshold(model_name: str) -> float:
@@ -400,8 +418,9 @@ async def record_operator_checkin(
     day_set = {c.day for c in all_checkins}
     total_checkins = len(all_checkins)
     streak = compute_streak(day_set, day)
-    earned_spin = is_new_day and (total_checkins % WHEEL_EVERY_N == 0)
-    pending_spins = max(0, (total_checkins // WHEEL_EVERY_N) - user.wheel_spins_claimed)
+    # A spin is earned when today's new check-in completes a 7-day run.
+    earned_spin = is_new_day and streak > 0 and streak % wheel_every_n() == 0
+    pending_spins = max(0, earned_spins(day_set) - user.wheel_spins_claimed)
 
     # Sync streak and checkup count with backend GamificationProfileRecord
     if is_new_day:
@@ -466,17 +485,14 @@ async def claim_wheel_spin(
     await session.refresh(user)
     await session.refresh(profile)
 
-    total_checkins = int(
-        (
-            await session.execute(
-                select(func.count())
-                .select_from(OperatorCheckInRecord)
-                .where(OperatorCheckInRecord.user_id == user.id)
+    all_days = (
+        await session.execute(
+            select(OperatorCheckInRecord.day).where(
+                OperatorCheckInRecord.user_id == user.id
             )
-        ).scalar_one()
-        or 0
-    )
-    pending_spins = max(0, (total_checkins // WHEEL_EVERY_N) - user.wheel_spins_claimed)
+        )
+    ).scalars().all()
+    pending_spins = max(0, earned_spins(set(all_days)) - user.wheel_spins_claimed)
 
     return ClaimWheelSpinResponse(
         status="nominal",
