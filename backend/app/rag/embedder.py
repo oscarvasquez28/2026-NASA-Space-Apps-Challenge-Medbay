@@ -1,5 +1,6 @@
 """Async vector embedder with Ollama integration and deterministic L2-normalized fallback."""
 
+import asyncio
 import logging
 import math
 import re
@@ -94,7 +95,8 @@ async def generate_embedding(
         }
         try:
             async with httpx.AsyncClient(timeout=1.5) as client:
-                response = await client.post(endpoint, json=payload)
+                # Enforce hard wall-clock bound because getaddrinfo() can block past httpx's socket timeout.
+                response = await asyncio.wait_for(client.post(endpoint, json=payload), timeout=1.5)
                 if response.status_code == 200:
                     data = response.json()
                     embedding = data.get("embedding")

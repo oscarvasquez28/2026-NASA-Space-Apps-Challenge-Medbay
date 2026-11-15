@@ -5,6 +5,7 @@ import logging
 from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import (
@@ -146,17 +147,44 @@ _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
+def _normalize_database_url(db_url: str) -> str:
+    """Ensure PostgreSQL URLs use the asyncpg driver and asyncpg-compatible SSL params."""
+    normalized = db_url.strip()
+    if normalized.startswith("postgres://"):
+        normalized = "postgresql+asyncpg://" + normalized[len("postgres://") :]
+    elif normalized.startswith("postgresql://"):
+        normalized = "postgresql+asyncpg://" + normalized[len("postgresql://") :]
+
+    if normalized.startswith("postgresql+asyncpg://") and "sslmode=" in normalized:
+        parts = urlsplit(normalized)
+        params = parse_qsl(parts.query, keep_blank_values=True)
+        has_ssl = any(k == "ssl" for k, _ in params)
+        rewritten = []
+        for k, v in params:
+            if k == "sslmode":
+                if not has_ssl:
+                    rewritten.append(("ssl", v))
+                    has_ssl = True
+            else:
+                rewritten.append((k, v))
+        normalized = urlunsplit(
+            (parts.scheme, parts.netloc, parts.path, urlencode(rewritten), parts.fragment)
+        )
+    return normalized
+
+
 def _create_engine_for_url(db_url: str) -> AsyncEngine:
     """Create an AsyncEngine tailored to the database dialect."""
-    if db_url.startswith("sqlite"):
+    normalized_url = _normalize_database_url(db_url)
+    if normalized_url.startswith("sqlite"):
         return create_async_engine(
-            db_url,
+            normalized_url,
             echo=False,
             future=True,
             connect_args={"check_same_thread": False},
         )
     return create_async_engine(
-        db_url,
+        normalized_url,
         echo=False,
         future=True,
         pool_pre_ping=True,
@@ -354,10 +382,10 @@ async def restore_database_snapshot(session: AsyncSession) -> dict[str, Any]:
 async def init_db() -> None:
     """Initialize database tables, extensions, and default baseline records."""
     global _engine, _sessionmaker
-    engine = get_engine()
 
     # Test initial connectivity, fallback to SQLite if PostgreSQL is unreachable
     try:
+        engine = get_engine()
         async with engine.begin() as conn:
             if engine.dialect.name == "postgresql":
                 try:

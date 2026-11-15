@@ -6,7 +6,27 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlmodel import SQLModel
 
 from app.db.models import LocationContextRecord, TelemetryRecord
-from app.db.session import _create_engine_for_url, get_sessionmaker, init_db, set_engine
+from app.db.session import (
+    _create_engine_for_url,
+    _normalize_database_url,
+    get_sessionmaker,
+    init_db,
+    set_engine,
+)
+
+
+def test_normalize_database_url_rewrites_postgres_driver_and_sslmode() -> None:
+    """Ensure standard Supabase/Postgres URLs are normalized for asyncpg."""
+    assert _normalize_database_url(
+        "postgresql://user:pass@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+    ) == "postgresql+asyncpg://user:pass@aws-1-us-east-1.pooler.supabase.com:5432/postgres?ssl=require"
+    assert _normalize_database_url("postgres://user:pass@host:5432/db?ssl=require") == (
+        "postgresql+asyncpg://user:pass@host:5432/db?ssl=require"
+    )
+    assert (
+        _normalize_database_url("sqlite+aiosqlite:///./test.db")
+        == "sqlite+aiosqlite:///./test.db"
+    )
 
 
 @pytest.mark.asyncio

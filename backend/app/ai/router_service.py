@@ -391,21 +391,29 @@ async def handle_ai_chat(
             failover_reason = f"Google GenAI error: {exc}"
 
     # Tier 2: Attempt Ollama MedGemma
-    if provider_used == "offline-rag-clinical-synth" and not request.force_offline:
+    if (
+        provider_used == "offline-rag-clinical-synth"
+        and not request.force_offline
+        and app_settings.ollama_base_url
+    ):
         try:
+            import asyncio
             import ollama
 
             ollama_client = ollama.AsyncClient(host=app_settings.ollama_base_url)
-            # Short timeout to avoid blocking astronauts
-            chat_resp = await ollama_client.chat(
-                model=app_settings.ollama_llm_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are MedGemma space medicine clinical advisor.",
-                    },
-                    {"role": "user", "content": request.message},
-                ],
+            # Enforce hard 4.0s timeout (covers DNS resolution + inference) to avoid blocking astronauts.
+            chat_resp = await asyncio.wait_for(
+                ollama_client.chat(
+                    model=app_settings.ollama_llm_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are MedGemma space medicine clinical advisor.",
+                        },
+                        {"role": "user", "content": request.message},
+                    ],
+                ),
+                timeout=4.0,
             )
             if chat_resp and "message" in chat_resp and "content" in chat_resp["message"]:
                 med_content = chat_resp["message"]["content"]
