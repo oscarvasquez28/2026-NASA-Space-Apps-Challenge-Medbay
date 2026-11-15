@@ -20,6 +20,7 @@ import {
 } from "@/components/three/shared-gallery";
 import { ViewerProvider } from "@/stores/viewer-store";
 import { ChecklistWidget } from "@/components/widgets/ChecklistWidget";
+import { useCheckIn } from "@/hooks/useCheckIn";
 import { useCrew } from "@/hooks/useCrew";
 import { useLocationContext } from "@/hooks/useLocationContext";
 import { useProvider } from "@/hooks/useProvider";
@@ -35,9 +36,11 @@ const JOURNEY = [
 
 export default function LabHome() {
   const provider = useProvider();
+  const { activeUser } = useCheckIn();
   const { crew, loading } = useCrew();
   const { profile } = useLocationContext();
   const viewMode = useAppStore((s) => s.viewMode);
+  const activeGamificationId = activeUser?.astronautId ?? DEFAULT_CREW_ID;
   const hero =
     crew.find((c) => c.id === DEFAULT_CREW_ID) ??
     crew[0] ??
@@ -194,7 +197,7 @@ export default function LabHome() {
 
       {/* ------------------------ checklist widget ------------------------ */}
       <section style={{ padding: "0 40px 34px" }}>
-        <ChecklistWidget crewId={DEFAULT_CREW_ID} />
+        <ChecklistWidget crewId={activeGamificationId} />
       </section>
 
       {/* -------------------------- philosophy --------------------------- */}

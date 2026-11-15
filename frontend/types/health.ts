@@ -375,6 +375,7 @@ export interface CheckupCompleteRequest {
   completed_tasks: string[];
   perform_gachapon_roll?: boolean;
   equip_skin_id?: string | null;
+  unlock_skin_id?: string | null;
   deterministic_seed?: number | null;
 }
 
@@ -793,7 +794,7 @@ export interface GamificationState {
 /** Operator session role — `medic` sees every enrolled user; `user` sees only their own. */
 export type UserRole = "medic" | "user";
 
-/** Enrolled console operator. facePhoto is a compressed JPEG dataURL kept in localStorage. */
+/** Enrolled console operator. facePhoto is a compressed JPEG dataURL backed by face_credentials. */
 export interface LocalUser {
   id: string;
   name: string;
@@ -802,6 +803,7 @@ export interface LocalUser {
   facePhoto: string;
   /** Gamification key — the backend auto-seeds a profile for any astronaut_id. */
   astronautId: string;
+  wheelSpinsClaimed?: number;
   createdAt: string;
 }
 
@@ -810,4 +812,65 @@ export interface CheckInRecord {
   /** YYYY-MM-DD local day key. */
   day: string;
   at: string;
+}
+
+/* ---------- Backend Auth & Facial Recognition (/api/v1/auth/*) ---------- */
+
+export interface AuthSessionStateResponse {
+  status: BackendStatus;
+  users: LocalUser[];
+  check_ins: CheckInRecord[];
+  face_credentials_count: number;
+}
+
+export interface RegisterOperatorRequest {
+  id?: string;
+  name: string;
+  callsign?: string;
+  role?: UserRole;
+  astronaut_id?: string;
+  face_photo: string;
+  label?: string;
+}
+
+export interface RegisterOperatorResponse {
+  status: BackendStatus;
+  user: LocalUser;
+  face_credential_id: number;
+  embedding_dim: number;
+  model_name: string;
+}
+
+export interface FaceIdentifyResponse {
+  status: "matched" | "unknown_face" | "no_face";
+  matched_user?: LocalUser | null;
+  confidence: number;
+  threshold: number;
+  model_name: string;
+  message: string;
+}
+
+export interface OperatorCheckInResponse {
+  status: BackendStatus;
+  is_new_day: boolean;
+  earned_spin: boolean;
+  streak: number;
+  total_checkins: number;
+  pending_spins: number;
+  check_in: CheckInRecord;
+}
+
+export interface ClaimWheelSpinRequest {
+  user_id: string;
+  unlocked_skin_id?: string | null;
+  equip?: boolean;
+}
+
+export interface ClaimWheelSpinResponse {
+  status: BackendStatus;
+  user_id: string;
+  wheel_spins_claimed: number;
+  pending_spins: number;
+  unlocked_skin_id?: string | null;
+  unlocked_skins: string[];
 }

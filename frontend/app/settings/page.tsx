@@ -12,7 +12,9 @@ import { Disclaimer, Eyebrow } from "@/components/ui/primitives";
 import { useHealthStatus } from "@/hooks/useHealthStatus";
 import { useLocationContext } from "@/hooks/useLocationContext";
 import { useProvider } from "@/hooks/useProvider";
+import { getAuthSessionState } from "@/lib/api";
 import { useAppStore, type Quality } from "@/stores/app-store";
+import { useUserStore } from "@/stores/user-store";
 import type { DatabaseSnapshotRestoreResponse } from "@/types/health";
 
 export default function SettingsPage() {
@@ -28,6 +30,9 @@ export default function SettingsPage() {
   const setReduceMotion = useAppStore((s) => s.setReduceMotion);
   const viewMode = useAppStore((s) => s.viewMode);
   const setViewMode = useAppStore((s) => s.setViewMode);
+  const idleTimeoutMs = useUserStore((s) => s.idleTimeoutMs);
+  const setIdleTimeoutMs = useUserStore((s) => s.setIdleTimeoutMs);
+  const setSessionLocked = useUserStore((s) => s.setSessionLocked);
   const { providerKind } = useHealthStatus();
 
   const [restoring, setRestoring] = useState(false);
@@ -44,6 +49,16 @@ export default function SettingsPage() {
       setRestoreRes(res);
       setLocationSynced(false);
       await refreshLocation();
+      if (providerKind === "rest") {
+        const remote = await getAuthSessionState().catch(() => null);
+        if (remote) {
+          useUserStore.getState().syncFromServer({
+            users: remote.users,
+            checkIns: remote.check_ins,
+          });
+          useUserStore.getState().setSessionLocked(false);
+        }
+      }
     } catch (e) {
       setRestoreErr(
         e instanceof Error ? e.message : "Database snapshot restore failed.",
@@ -133,6 +148,34 @@ export default function SettingsPage() {
               onClick={() => setViewMode("technical")}
             >
               TECHNICAL
+            </button>
+          </div>,
+        )}
+        {row(
+          "Idle biometric lock timeout",
+          "Engage camera lock screen after inactivity",
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="view-toggle">
+              {[
+                { label: "1 MIN", ms: 60_000 },
+                { label: "3 MIN", ms: 180_000 },
+                { label: "5 MIN", ms: 300_000 },
+                { label: "OFF", ms: 0 },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  aria-pressed={idleTimeoutMs === opt.ms}
+                  onClick={() => setIdleTimeoutMs(opt.ms)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn"
+              onClick={() => setSessionLocked(true)}
+            >
+              Lock now
             </button>
           </div>,
         )}

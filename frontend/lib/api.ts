@@ -10,15 +10,22 @@ import type {
   AIChatRequest,
   AIChatResponse,
   AstronautBodyStatusResponse,
+  AuthSessionStateResponse,
   BackendTrendIndicator,
   CheckupCompleteRequest,
   CheckupCompleteResponse,
+  ClaimWheelSpinRequest,
+  ClaimWheelSpinResponse,
   DatabaseSnapshotRestoreResponse,
+  FaceIdentifyResponse,
   GamificationStatusResponse,
   HealthResponse,
   KnowledgeSearchResponse,
   LocationContextResponse,
   LocationContextUpdate,
+  OperatorCheckInResponse,
+  RegisterOperatorRequest,
+  RegisterOperatorResponse,
   TelemedicineFlushRequest,
   TelemedicineFlushResponse,
   TelemedicineSyncQueueResponse,
@@ -318,4 +325,60 @@ export function restoreDatabaseSnapshot(): Promise<DatabaseSnapshotRestoreRespon
     method: "PUT",
     timeoutMs: 30_000,
   });
+}
+
+/* ---------- 11. Operator Auth, Facial Recognition & Check-In Session ---------- */
+
+export function getAuthSessionState(): Promise<AuthSessionStateResponse> {
+  return apiFetch<AuthSessionStateResponse>("/api/v1/auth/session-state", {
+    method: "GET",
+  });
+}
+
+export function registerOperator(
+  payload: RegisterOperatorRequest,
+): Promise<RegisterOperatorResponse> {
+  return apiFetch<RegisterOperatorResponse>("/api/v1/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    timeoutMs: 20_000,
+  });
+}
+
+export function identifyOperatorFace(
+  facePhoto: string,
+): Promise<FaceIdentifyResponse> {
+  return apiFetch<FaceIdentifyResponse>("/api/v1/auth/identify", {
+    method: "POST",
+    body: JSON.stringify({ face_photo: facePhoto }),
+    timeoutMs: 20_000,
+  });
+}
+
+export function recordOperatorCheckIn(
+  userId: string,
+  day?: string,
+): Promise<OperatorCheckInResponse> {
+  return apiFetch<OperatorCheckInResponse>("/api/v1/auth/checkin", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, day }),
+  });
+}
+
+export function claimOperatorWheelSpin(
+  payload: ClaimWheelSpinRequest,
+): Promise<ClaimWheelSpinResponse> {
+  return apiFetch<ClaimWheelSpinResponse>("/api/v1/auth/claim-wheel-spin", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteOperatorUser(
+  userId: string,
+): Promise<{ status: string; user_id: string }> {
+  return apiFetch<{ status: string; user_id: string }>(
+    `/api/v1/auth/users/${encodeURIComponent(userId)}`,
+    { method: "DELETE" },
+  );
 }

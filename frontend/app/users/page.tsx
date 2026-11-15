@@ -10,6 +10,8 @@ import Link from "next/link";
 
 import { Disclaimer, Eyebrow } from "@/components/ui/primitives";
 import { useCheckIn } from "@/hooks/useCheckIn";
+import { deleteOperatorUser } from "@/lib/api";
+import { getRuntimeConfig } from "@/lib/config";
 import { useUserStore } from "@/stores/user-store";
 
 export default function UsersPage() {
@@ -85,8 +87,15 @@ export default function UsersPage() {
                   className="btn"
                   style={{ fontSize: 10 }}
                   onClick={() => {
-                    if (confirm(`Remove ${u.name}? Their check-ins are deleted.`))
+                    if (confirm(`Remove ${u.name}? Their check-ins and saved face credentials are deleted.`)) {
                       removeUser(u.id);
+                      void getRuntimeConfig().then((cfg) => {
+                        if (cfg.dataProvider === "rest") {
+                          return deleteOperatorUser(u.id).catch(() => undefined);
+                        }
+                        return undefined;
+                      });
+                    }
                   }}
                 >
                   <UserX size={10} /> Remove
@@ -99,8 +108,8 @@ export default function UsersPage() {
 
       <div style={{ marginTop: 16 }}>
         <Disclaimer>
-          LOCAL PROFILES ONLY — photos and check-ins persist in this
-          browser&apos;s localStorage. No account is sent to the backend.
+          OPERATOR DIRECTORY — profiles, face credentials, and daily check-ins
+          synchronize with FastAPI `/api/v1/auth/*`.
         </Disclaimer>
       </div>
     </div>

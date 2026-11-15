@@ -11,6 +11,9 @@ function resetStore() {
     activeUserId: null,
     checkIns: [],
     wheelSpinsClaimed: 0,
+    idleTimeoutMs: 180_000,
+    sessionLocked: false,
+    unrecognizedFacePhoto: null,
     hydrated: true,
   });
 }
@@ -112,6 +115,48 @@ describe("prize drum roll", () => {
     const rare = pickSkinOfRarity("rare", ownedCommon, () => 0);
     expect(rare?.rarity).toBe("rare");
     expect(ownedCommon).not.toContain(rare?.id);
+  });
+});
+
+describe("idle lock & backend sync state", () => {
+  beforeEach(resetStore);
+
+  it("tracks sessionLocked, idleTimeoutMs, and unrecognizedFacePhoto", () => {
+    expect(userStore().sessionLocked).toBe(false);
+    expect(userStore().idleTimeoutMs).toBe(180_000);
+    userStore().setIdleTimeoutMs(60_000);
+    userStore().setSessionLocked(true);
+    userStore().setUnrecognizedFacePhoto(PHOTO);
+    expect(userStore().idleTimeoutMs).toBe(60_000);
+    expect(userStore().sessionLocked).toBe(true);
+    expect(userStore().unrecognizedFacePhoto).toBe(PHOTO);
+  });
+
+  it("syncs remote operators and check-ins from backend session-state", () => {
+    userStore().syncFromServer({
+      users: [
+        {
+          id: "usr_srv_1",
+          name: "Dr. Server",
+          role: "medic",
+          facePhoto: PHOTO,
+          astronautId: "AST-U01",
+          wheelSpinsClaimed: 2,
+          createdAt: "2026-11-14T00:00:00Z",
+        },
+      ],
+      checkIns: [
+        {
+          userId: "usr_srv_1",
+          day: dayKeyForTest(0),
+          at: "2026-11-14T12:00:00Z",
+        },
+      ],
+    });
+    expect(userStore().users).toHaveLength(1);
+    expect(userStore().activeUserId).toBe("usr_srv_1");
+    expect(userStore().wheelSpinsClaimed).toBe(2);
+    expect(userStore().checkIns).toHaveLength(1);
   });
 });
 

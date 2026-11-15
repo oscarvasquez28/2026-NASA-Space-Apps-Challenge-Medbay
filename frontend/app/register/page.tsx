@@ -13,6 +13,8 @@ import { useState } from "react";
 
 import { FaceCapture } from "@/components/ui/FaceCapture";
 import { Disclaimer, Eyebrow } from "@/components/ui/primitives";
+import { registerOperator } from "@/lib/api";
+import { getRuntimeConfig } from "@/lib/config";
 import { useUserStore } from "@/stores/user-store";
 import type { UserRole } from "@/types/health";
 
@@ -20,6 +22,10 @@ export default function RegisterPage() {
   const router = useRouter();
   const users = useUserStore((s) => s.users);
   const addUser = useUserStore((s) => s.addUser);
+  const upsertServerUser = useUserStore((s) => s.upsertServerUser);
+  const setActiveUser = useUserStore((s) => s.setActiveUser);
+  const unrecognizedFacePhoto = useUserStore((s) => s.unrecognizedFacePhoto);
+  const setUnrecognizedFacePhoto = useUserStore((s) => s.setUnrecognizedFacePhoto);
 
   const firstUser = users.length === 0;
   const [name, setName] = useState("");
@@ -28,22 +34,57 @@ export default function RegisterPage() {
   const [astronautId, setAstronautId] = useState(
     `AST-U${String(users.length + 1).padStart(2, "0")}`,
   );
-  const [facePhoto, setFacePhoto] = useState<string | null>(null);
+  const [facePhoto, setFacePhoto] = useState<string | null>(
+    () => unrecognizedFacePhoto,
+  );
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!name.trim()) return setError("Name is required.");
     if (!facePhoto) return setError("A face photo is required for visual ID.");
-    const user = addUser({
-      name: name.trim(),
-      callsign: callsign.trim() || undefined,
-      role: firstUser ? "medic" : role,
-      astronautId: astronautId.trim() || undefined,
-      facePhoto,
-    });
-    if (!user) return setError("Could not save the operator profile.");
-    router.push("/checkin");
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const cfg = await getRuntimeConfig();
+      if (cfg.dataProvider === "rest") {
+        const res = await registerOperator({
+          name: name.trim(),
+          callsign: callsign.trim() || undefined,
+          role: firstUser ? "medic" : role,
+          astronaut_id: astronautId.trim() || undefined,
+          face_photo: facePhoto,
+        });
+        upsertServerUser(res.user);
+        setActiveUser(res.user.id);
+        setUnrecognizedFacePhoto(null);
+        router.push("/checkin");
+        return;
+      }
+
+      const user = addUser({
+        name: name.trim(),
+        callsign: callsign.trim() || undefined,
+        role: firstUser ? "medic" : role,
+        astronautId: astronautId.trim() || undefined,
+        facePhoto,
+      });
+      if (!user) return setError("Could not save the operator profile.");
+      setUnrecognizedFacePhoto(null);
+      router.push("/checkin");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not save the operator profile.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -128,8 +169,13 @@ export default function RegisterPage() {
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-          <button type="submit" className="btn btn-primary">
-            <UserPlus size={11} /> {firstUser ? "Create medic account" : "Enroll operator"}
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            <UserPlus size={11} />{" "}
+            {submitting
+              ? "Saving face embedding…"
+              : firstUser
+                ? "Create medic account"
+                : "Enroll operator"}
           </button>
           {!firstUser && (
             <button type="button" className="btn" onClick={() => router.back()}>
@@ -140,9 +186,8 @@ export default function RegisterPage() {
 
         <div style={{ marginTop: 16 }}>
           <Disclaimer>
-            LOCAL PROFILE — photo and identity live in this browser&apos;s
-            localStorage only. Visual recognition is simulated until a real
-            adapter ships.
+            BIOMETRIC PROFILE — operator metadata and local facial embedding are
+            saved to the backend face_credentials table for automatic lock-screen login.
           </Disclaimer>
         </div>
       </form>

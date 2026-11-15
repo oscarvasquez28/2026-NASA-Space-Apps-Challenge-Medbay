@@ -3,8 +3,7 @@
 /**
  * FaceCapture — webcam preview in a HUD frame.
  *  mode="capture": snapshot → compressed JPEG dataURL (register flow).
- *  mode="scan":    animated ID pass, no image stored (check-in flow).
- * Visual recognition is SIMULATED — photos stay in localStorage.
+ *  mode="scan":    captures a live frame after scanDurationMs and passes it to onScanComplete(dataUrl).
  */
 
 import { Camera, ImageUp, RefreshCw, ScanFace } from "lucide-react";
@@ -38,11 +37,11 @@ export function FaceCapture({
   onCapture,
   onScanComplete,
   autoStart = true,
-  scanDurationMs = 2200,
+  scanDurationMs = 1500,
 }: {
   mode: "capture" | "scan";
   onCapture?: (dataUrl: string) => void;
-  onScanComplete?: () => void;
+  onScanComplete?: (capturedDataUrl?: string) => void;
   autoStart?: boolean;
   scanDurationMs?: number;
 }) {
@@ -97,16 +96,22 @@ export function FaceCapture({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // scan mode: run the simulated ID pass once the stream can play
+  // scan mode: capture a live JPEG frame once the stream can play
   const handleCanPlay = useCallback(() => {
     if (mode !== "scan" || scanned.current) return;
     scanned.current = true;
     setScanning(true);
     setTimeout(() => {
+      const v = videoRef.current;
+      let frameUrl: string | undefined;
+      if (v && v.videoWidth > 0 && v.videoHeight > 0) {
+        frameUrl = downscaleToDataUrl(v, v.videoWidth, v.videoHeight);
+      }
       setScanning(false);
-      onScanComplete?.();
+      stop();
+      onScanComplete?.(frameUrl);
     }, scanDurationMs);
-  }, [mode, scanDurationMs, onScanComplete]);
+  }, [mode, scanDurationMs, onScanComplete, stop]);
 
   const capture = useCallback(() => {
     const v = videoRef.current;
@@ -132,11 +137,17 @@ export function FaceCapture({
         const url = downscaleToDataUrl(img, img.naturalWidth, img.naturalHeight);
         URL.revokeObjectURL(img.src);
         setShot(url);
-        onCapture?.(url);
+        stop();
+        if (mode === "scan") {
+          scanned.current = true;
+          onScanComplete?.(url);
+        } else {
+          onCapture?.(url);
+        }
       };
       img.src = URL.createObjectURL(file);
     },
-    [onCapture],
+    [mode, onCapture, onScanComplete, stop],
   );
 
   return (
@@ -216,7 +227,16 @@ export function FaceCapture({
           </button>
         )}
         {mode === "scan" && scanning && (
-          <span className="micro-8">VISUAL ID · SIMULATED</span>
+          <span className="micro-8">VISUAL ID · ANALYZING FACE</span>
+        )}
+        {mode === "scan" && !scanning && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => fileRef.current?.click()}
+          >
+            <ImageUp size={11} /> Upload photo
+          </button>
         )}
         {mode === "scan" && (status === "denied" || status === "unsupported") && (
           <button
@@ -224,10 +244,11 @@ export function FaceCapture({
             className="btn"
             onClick={() => {
               scanned.current = true;
-              onScanComplete?.();
+              stop();
+              onScanComplete?.(undefined);
             }}
           >
-            <ScanFace size={11} /> Skip scan — pick operator
+            <ScanFace size={11} /> Login manually
           </button>
         )}
       </div>
@@ -245,8 +266,8 @@ export function FaceCapture({
       />
       <div className="micro-8" style={{ color: "var(--dim)" }}>
         {mode === "scan"
-          ? "SIMULATED VISUAL ID — no real face recognition"
-          : "PHOTO STORED IN LOCALSTORAGE ONLY · NO RECOGNITION PERFORMED"}
+          ? "LOCAL BIOMETRIC ID — OpenCV YuNet + SFace matching"
+          : "FACE EMBEDDING SAVED TO BACKEND FACE_CREDENTIALS"}
       </div>
     </div>
   );

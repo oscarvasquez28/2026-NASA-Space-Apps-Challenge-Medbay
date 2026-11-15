@@ -14,11 +14,15 @@ import { useMemo, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { MicroLabel } from "@/components/ui/primitives";
+import { DEFAULT_CREW_ID } from "@/data/crew";
 import {
   pickSkinOfRarity,
   rollDrumRarity,
   type DrumRarity,
 } from "@/data/gamification";
+import { useCheckIn } from "@/hooks/useCheckIn";
+import { claimOperatorWheelSpin, completeCheckup } from "@/lib/api";
+import { getRuntimeConfig } from "@/lib/config";
 import { useAppStore } from "@/stores/app-store";
 import type { SkinDef } from "@/types/health";
 
@@ -118,6 +122,7 @@ function DrumContent({
   const reduceMotion = useAppStore((s) => s.reduceMotion);
   const ownedSkinIds = useAppStore((s) => s.ownedSkinIds);
   const rewardSkin = useAppStore((s) => s.rewardSkin);
+  const { activeUser } = useCheckIn();
 
   const [prize] = useState<RolledPrize>(() => rollPrize(ownedSkinIds));
   const [phase, setPhase] = useState<"spinning" | "reveal">(
@@ -127,6 +132,27 @@ function DrumContent({
   const claim = () => {
     rewardSkin(prize.skin.id);
     onClaimed?.(prize.skin);
+    void getRuntimeConfig().then(async (cfg) => {
+      if (cfg.dataProvider !== "rest") return;
+      try {
+        if (activeUser) {
+          await claimOperatorWheelSpin({
+            user_id: activeUser.id,
+            unlocked_skin_id: prize.skin.id,
+            equip: true,
+          });
+        } else {
+          await completeCheckup({
+            astronaut_id: DEFAULT_CREW_ID,
+            completed_tasks: [],
+            perform_gachapon_roll: false,
+            unlock_skin_id: prize.skin.id,
+          });
+        }
+      } catch {
+        // Local skin unlock already applied; backend sync fails gracefully offline
+      }
+    });
     onOpenChange(false);
   };
 

@@ -37,11 +37,12 @@ export function useGamification(crewId: string | undefined) {
     try {
       const s = await provider.getGamification(crewId);
       setServerState(s);
+      s.ownedSkinIds.forEach((id) => rewardSkin(id));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load gamification status.");
     }
-  }, [provider, crewId]);
+  }, [provider, crewId, rewardSkin]);
 
   useEffect(() => {
     if (!provider || !crewId) return;
@@ -50,6 +51,7 @@ export function useGamification(crewId: string | undefined) {
       (s) => {
         if (!cancelled) {
           setServerState(s);
+          s.ownedSkinIds.forEach((id) => rewardSkin(id));
           setError(null);
         }
       },
@@ -64,7 +66,7 @@ export function useGamification(crewId: string | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [provider, crewId]);
+  }, [provider, crewId, rewardSkin]);
 
   const checklist: ChecklistItem[] =
     serverState?.checklist ??
