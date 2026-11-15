@@ -1,0 +1,211 @@
+{
+  "info": {
+    "_postman_id": "8f921a44-77db-4fa2-bc42-998811223344",
+    "name": "Astronaut Health Monitoring & Autonomous Triage API - Phase 4",
+    "description": "Phase 4 Postman collection covering Routine Measurement Scheduler & Gachapon Reward Engine (Requests 25-26) and Tempus Pro Asynchronous Telemedicine Sync Queue (Requests 27-28).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "25. Gamification - Get Astronaut Profile & Routine Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Response exposes standardized status, high_level, and technical fields\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.astronaut_id).to.eql(pm.environment.get(\"astronautId\") || \"AST-01\");",
+              "    pm.expect(json.readiness_streak_days).to.be.at.least(1);",
+              "    pm.expect(json.gachapon_tokens).to.be.at.least(0);",
+              "    pm.expect(json.routine_tasks).to.be.an(\"array\").with.lengthOf(5);",
+              "    pm.expect(json.catalog).to.be.an(\"array\").with.lengthOf(12);",
+              "    pm.expect(json.equipped_skin).to.have.property(\"skin_id\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/gamification/status?astronaut_id={{astronautId}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "gamification",
+            "status"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "26. Gamification - Complete Checkup & Roll Gachapon Companion Skin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Checkup complete advances streak, updates compliance, and returns standardized response\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.readiness_streak_days).to.be.above(1);",
+              "    pm.expect(json.tokens_awarded).to.eql(1);",
+              "    pm.expect(json.roll_performed).to.be.true;",
+              "    pm.expect(json.roll_result).to.have.property(\"rolled_skin\");",
+              "    pm.expect(json.roll_result.rarity).to.be.oneOf([\"COMMON\", \"RARE\", \"EPIC\", \"LEGENDARY\"]);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"completed_tasks\": [\n    \"task_morning_vitals\",\n    \"task_ared_exercise\"\n  ],\n  \"perform_gachapon_roll\": true,\n  \"deterministic_seed\": 42\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/gamification/checkup-complete",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "gamification",
+            "checkup-complete"
+          ]
+        }
+      }
+    },
+    {
+      "name": "27. Telemedicine - Inspect Tempus Pro Store-and-Forward Sync Queue",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Sync queue exposes packets with standard measures telemetry and Ridge forecasts\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json).to.have.property(\"comm_window_open\");",
+              "    pm.expect(json).to.have.property(\"pending_count\");",
+              "    pm.expect(json).to.have.property(\"transmitted_count\");",
+              "    pm.expect(json.packets).to.be.an(\"array\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemedicine/sync-queue?astronaut_id={{astronautId}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemedicine",
+            "sync-queue"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "28. Telemedicine - Flush Sync Queue to Earth Flight Surgeon",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Queue flush transitions packets and returns standardized burst summary\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json).to.have.property(\"flushed_count\");",
+              "    pm.expect(json).to.have.property(\"remaining_pending_count\");",
+              "    pm.expect(json.ground_station).to.eql(\"NASA-JSC-MCC-Houston\");",
+              "    pm.expect(json.transmitted_at).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"force_flush\": true,\n  \"ground_station\": \"NASA-JSC-MCC-Houston\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemedicine/flush",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemedicine",
+            "flush"
+          ]
+        }
+      }
+    }
+  ]
+}

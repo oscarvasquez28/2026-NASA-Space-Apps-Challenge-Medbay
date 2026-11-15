@@ -1,0 +1,1428 @@
+{
+  "info": {
+    "_postman_id": "master-astronaut-triage-api-v1",
+    "name": "Astronaut Health Monitoring & Autonomous Triage API - Master Collection",
+    "description": "Master unified Postman collection uniting all 28 requests across Phase 1, Phase 2, Phase 3, and Phase 4. Fully asserted for HTTP 200 and standardized status, high_level, and technical fields.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Health Liveness Probe",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Health status is ok\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"ok\");",
+              "    pm.expect(json.service).to.eql(\"backend\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "2. Context - Get Active Location",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Response exposes standardized status, high_level, and technical fields\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.hazard_multipliers).to.have.property(\"composite_multiplier\");",
+              "    pm.expect(json.hazard_multipliers.composite_multiplier).to.be.above(0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/context/location",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "context",
+            "location"
+          ]
+        }
+      }
+    },
+    {
+      "name": "3. Context - Update to Rover / EVA (Elevated Hazards)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Rover / EVA updates setting with status and dual-view text\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.location_setting).to.eql(\"Rover / EVA\");",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.hazard_multipliers.composite_multiplier).to.be.above(1.0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"location_setting\": \"Rover / EVA\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/context/location",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "context",
+            "location"
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Triage - Evaluate 3-Tier Clinical Assessment",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"3-Tier triage returns structured tier, status, and dual-view fields\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.triage_tier).to.be.oneOf([\"TIER_1_SELF_CARE\", \"TIER_2_CMO_REVIEW\", \"TIER_3_GROUND_SURGEON\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.anomaly_flags).to.be.an(\"array\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 74.0,\n  \"spo2_percent\": 98.2,\n  \"core_temp_c\": 37.0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/triage/evaluate",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "triage",
+            "evaluate"
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Telemetry - Ingest Nominal Resting Vitals",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Nominal telemetry classified as Tier 1 Self-Care\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"nominal\");",
+              "    pm.expect(json.triage_tier).to.eql(\"TIER_1_SELF_CARE\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.recommended_actions).to.be.an(\"array\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 72.0,\n  \"spo2_percent\": 98.5,\n  \"core_temp_c\": 37.0,\n  \"systolic_bp_mmhg\": 118.0,\n  \"diastolic_bp_mmhg\": 78.0,\n  \"blood_sugar_mg_dl\": 92.0,\n  \"sleep_hours\": 7.5,\n  \"mood_score\": 8.0,\n  \"stress_level\": 2.0,\n  \"symptoms\": []\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemetry",
+            "ingest"
+          ]
+        }
+      }
+    },
+    {
+      "name": "6. Telemetry - Ingest SANS & CO2 Caution",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"SANS acuity shift prescribes Thigh Cuffs and B-Complex\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"caution\");",
+              "    pm.expect(json.triage_tier).to.eql(\"TIER_2_CMO_REVIEW\");",
+              "    var actionsStr = JSON.stringify(json.recommended_actions);",
+              "    pm.expect(actionsStr).to.include(\"Thigh Cuffs\");",
+              "    pm.expect(actionsStr).to.include(\"B-Complex\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 75.0,\n  \"spo2_percent\": 97.8,\n  \"core_temp_c\": 37.1,\n  \"visual_acuity_logmar\": 0.28,\n  \"co2_partial_pressure_mmhg\": 4.2,\n  \"symptoms\": [\"mild headache\", \"eye strain\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemetry",
+            "ingest"
+          ]
+        }
+      }
+    },
+    {
+      "name": "7. Telemetry - Ingest Critical EVA Depressurization & Hypoxia",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Critical EVA hypoxemia escalates to Tier 3 Ground Surgeon with Bends actions\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"critical\");",
+              "    pm.expect(json.triage_tier).to.eql(\"TIER_3_GROUND_SURGEON\");",
+              "    var actionsStr = JSON.stringify(json.recommended_actions);",
+              "    pm.expect(actionsStr).to.satisfy(function(s) {",
+              "        return s.includes(\"Abort\") || s.includes(\"Bends\") || s.includes(\"airlock\");",
+              "    });",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.include(\"CRITICAL\");",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.include(\"TIER_3_GROUND_SURGEON\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 145.0,\n  \"spo2_percent\": 84.0,\n  \"core_temp_c\": 37.2,\n  \"suit_pressure_kpa\": 22.0,\n  \"symptoms\": [\"dyspnea\", \"bends\", \"joint pain\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemetry",
+            "ingest"
+          ]
+        }
+      }
+    },
+    {
+      "name": "8. Telemetry - Ingest Radiation & Skin Rash Symptoms",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Radiation and skin rash flagged with barrier repair protocols\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"caution\");",
+              "    pm.expect(json.target_anatomical_zone).to.eql(\"skin\");",
+              "    var actionsStr = JSON.stringify(json.recommended_actions);",
+              "    pm.expect(actionsStr).to.satisfy(function(s) {",
+              "        return s.includes(\"Ceramide\") || s.includes(\"hydrocortisone\") || s.includes(\"prebiotic\");",
+              "    });",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 78.0,\n  \"spo2_percent\": 97.5,\n  \"core_temp_c\": 37.2,\n  \"radiation_dose_msv\": 28.0,\n  \"sleep_hours\": 4.8,\n  \"stress_level\": 7.5,\n  \"target_anatomical_zone\": \"skin\",\n  \"symptoms\": [\"pruritic rash\", \"erythema\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemetry",
+            "ingest"
+          ]
+        }
+      }
+    },
+    {
+      "name": "9. Telemetry - Ingest Osteopenia & Insulin Resistance",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Bone loss and insulin shift prescribes Zero T2, Food Physiology, and Space Gardening\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"caution\");",
+              "    var actionsStr = JSON.stringify(json.recommended_actions);",
+              "    pm.expect(actionsStr).to.include(\"Zero T2\");",
+              "    pm.expect(actionsStr).to.include(\"Food Physiology\");",
+              "    pm.expect(actionsStr).to.include(\"Space Gardening\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 76.0,\n  \"spo2_percent\": 98.0,\n  \"core_temp_c\": 37.0,\n  \"bone_mineral_density_t_score\": -1.8,\n  \"blood_sugar_mg_dl\": 122.0,\n  \"symptoms\": [\"calf cramp\", \"lumbar back pain\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemetry",
+            "ingest"
+          ]
+        }
+      }
+    },
+    {
+      "name": "10. Astronaut - Get 6-Zone Anatomical Body Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Body status synthesizes all 6 anatomical zones with tokens and dual-view text\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.overall_ui_token).to.be.oneOf([\"status-nominal\", \"status-caution\", \"status-critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    var zones = [\"head_eyes\", \"cardiovascular_chest\", \"spine_skeletal\", \"musculoskeletal_limbs\", \"gut_microbiome\", \"skin\"];",
+              "    zones.forEach(function (z) {",
+              "        pm.expect(json.zones).to.have.property(z);",
+              "        pm.expect(json.zones[z].status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "        pm.expect(json.zones[z].ui_token).to.be.oneOf([\"status-nominal\", \"status-caution\", \"status-critical\"]);",
+              "        pm.expect(json.zones[z].recommended_countermeasures).to.be.an(\"array\").and.not.empty;",
+              "        pm.expect(json.zones[z].self_exam_steps).to.be.an(\"array\").and.not.empty;",
+              "    });",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/astronaut/body-status?astronaut_id={{astronautId}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "astronaut",
+            "body-status"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "11. Trends - Heart Rate Time-Series & Ridge Forecast",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Heart rate trend returns historical points, 3 event markers, and 95% CIs\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.indicator).to.eql(\"heart_rate_bpm\");",
+              "    pm.expect(json.unit).to.eql(\"bpm\");",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.historical_points).to.be.an(\"array\").and.not.empty;",
+              "    pm.expect(json.event_markers).to.have.lengthOf(3);",
+              "    pm.expect(json.forecast_points).to.have.lengthOf(5);",
+              "    json.forecast_points.forEach(function (fp) {",
+              "        pm.expect(fp.lower_ci).to.be.at.most(fp.predicted_value);",
+              "        pm.expect(fp.predicted_value).to.be.at.most(fp.upper_ci);",
+              "    });",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/trends/heart_rate_bpm?astronaut_id={{astronautId}}&history_limit=20&forecast_steps=5",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "trends",
+            "heart_rate_bpm"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            },
+            {
+              "key": "history_limit",
+              "value": "20"
+            },
+            {
+              "key": "forecast_steps",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "12. Trends - SpO2 Time-Series & Threshold Warning",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"SpO2 trend returns valid status and threshold warning boolean\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.indicator).to.eql(\"spo2_percent\");",
+              "    pm.expect(json.unit).to.eql(\"%\");",
+              "    pm.expect(json.threshold_warning).to.be.a(\"boolean\");",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.forecast_points).to.have.lengthOf(5);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/trends/spo2_percent?astronaut_id={{astronautId}}&history_limit=20&forecast_steps=5",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "trends",
+            "spo2_percent"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            },
+            {
+              "key": "history_limit",
+              "value": "20"
+            },
+            {
+              "key": "forecast_steps",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "13. Trends - Blood Sugar Glucose Forecast",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Blood sugar trend returns mg/dL units and forecast points\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.indicator).to.eql(\"blood_sugar_mg_dl\");",
+              "    pm.expect(json.unit).to.eql(\"mg/dL\");",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.forecast_points).to.have.lengthOf(5);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/trends/blood_sugar_mg_dl?astronaut_id={{astronautId}}&history_limit=20&forecast_steps=5",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "trends",
+            "blood_sugar_mg_dl"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            },
+            {
+              "key": "history_limit",
+              "value": "20"
+            },
+            {
+              "key": "forecast_steps",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "14. Trends - Bone Mineral Density T-Score Forecast",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"BMD trend returns T-score units and forecast points\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.indicator).to.eql(\"bone_mineral_density_t_score\");",
+              "    pm.expect(json.unit).to.eql(\"T-score\");",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.forecast_points).to.have.lengthOf(5);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/trends/bone_mineral_density_t_score?astronaut_id={{astronautId}}&history_limit=20&forecast_steps=5",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "trends",
+            "bone_mineral_density_t_score"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            },
+            {
+              "key": "history_limit",
+              "value": "20"
+            },
+            {
+              "key": "forecast_steps",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "15. Trends - SANS Visual Acuity LogMAR Forecast",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Visual acuity trend returns LogMAR units and forecast points\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.indicator).to.eql(\"visual_acuity_logmar\");",
+              "    pm.expect(json.unit).to.eql(\"LogMAR\");",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.forecast_points).to.have.lengthOf(5);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/trends/visual_acuity_logmar?astronaut_id={{astronautId}}&history_limit=20&forecast_steps=5",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "trends",
+            "visual_acuity_logmar"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            },
+            {
+              "key": "history_limit",
+              "value": "20"
+            },
+            {
+              "key": "forecast_steps",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "16. Telemetry - Ingest SANS Optic Shift Multimodal",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"SANS shift classified as Tier-2 with OCT scan and Thigh Cuffs actions\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.recommended_actions).to.be.an(\"array\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 76.0,\n  \"spo2_percent\": 98.1,\n  \"core_temp_c\": 37.0,\n  \"visual_acuity_logmar\": 0.32,\n  \"co2_partial_pressure_mmhg\": 4.1,\n  \"target_anatomical_zone\": \"head_eyes\",\n  \"symptoms\": [\"visual acuity loss\", \"papilledema\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemetry",
+            "ingest"
+          ]
+        }
+      }
+    },
+    {
+      "name": "17. Telemetry - Ingest EVA Hypoxemia & Decompression",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Critical EVA hypoxemia flags Tier-3 Ground Surgeon alert\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"critical\");",
+              "    pm.expect(json.triage_tier).to.eql(\"TIER_3_GROUND_SURGEON\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 135.0,\n  \"spo2_percent\": 85.0,\n  \"core_temp_c\": 36.8,\n  \"suit_pressure_kpa\": 23.5,\n  \"target_anatomical_zone\": \"cardiovascular_chest\",\n  \"symptoms\": [\"severe hypoxia\", \"decompression bends\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemetry",
+            "ingest"
+          ]
+        }
+      }
+    },
+    {
+      "name": "18. RAG - Semantic Search SANS Protocols",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Semantic knowledge search returns top SANS chunk with scores\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"nominal\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.total_chunks).to.be.at.least(8);",
+              "    pm.expect(json.embedding_provider).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.results).to.be.an(\"array\").and.have.lengthOf(2);",
+              "    var topDoc = json.results[0];",
+              "    pm.expect(topDoc.category).to.eql(\"SANS\");",
+              "    pm.expect(topDoc.similarity_score).to.be.above(0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ai/knowledge?q=SANS optic disc edema&top_k=2",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ai",
+            "knowledge"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "SANS optic disc edema"
+            },
+            {
+              "key": "top_k",
+              "value": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "19. RAG - Filter Knowledge by Category (EVA/Hypoxia)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Filtered category search strictly matches EVA/Hypoxia domain\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"nominal\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.results).to.be.an(\"array\").and.not.empty;",
+              "    json.results.forEach(function (doc) {",
+              "        pm.expect(doc.category).to.eql(\"EVA/Hypoxia\");",
+              "    });",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ai/knowledge?q=decompression bends&category=EVA/Hypoxia&top_k=2",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ai",
+            "knowledge"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "decompression bends"
+            },
+            {
+              "key": "category",
+              "value": "EVA/Hypoxia"
+            },
+            {
+              "key": "top_k",
+              "value": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "20. AI Chat - Crew High-Level Query (SANS Symptoms)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Crew chat returns high-level plain language self-care guidance\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.view_mode).to.eql(\"high_level\");",
+              "    pm.expect(json.reply).to.eql(json.high_level);",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.provider_used).to.be.oneOf([\"google-genai:gemini\", \"ollama:medgemma\", \"offline-rag-clinical-synth\"]);",
+              "    pm.expect(json.retrieved_knowledge).to.be.an(\"array\").and.not.empty;",
+              "    pm.expect(json.recommended_actions).to.be.an(\"array\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"message\": \"My vision is blurry and I have head pressure.\",\n  \"view_mode\": \"high_level\",\n  \"force_offline\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ai/chat",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ai",
+            "chat"
+          ]
+        }
+      }
+    },
+    {
+      "name": "21. AI Chat - Flight Surgeon Technical Mode (Critical EVA Hypoxia)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Critical EVA hypoxemia returns technical flight surgeon assessment\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.view_mode).to.eql(\"technical\");",
+              "    pm.expect(json.reply).to.eql(json.technical);",
+              "    pm.expect(json.status).to.eql(\"critical\");",
+              "    pm.expect(json.triage_tier).to.eql(\"TIER_3_GROUND_SURGEON\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"message\": \"SpO2 dropped to 86% and suit pressure is 24 kPa\",\n  \"view_mode\": \"technical\",\n  \"force_offline\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ai/chat",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ai",
+            "chat"
+          ]
+        }
+      }
+    },
+    {
+      "name": "22. AI Chat - Offline Multimodal Clinical Synthesis with Diagnostic Image",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Diagnostic image is processed without errors and returns offline clinical guidance\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.offline_mode).to.eql(true);",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.recommended_actions).to.be.an(\"array\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"message\": \"Dermatomal rash outbreak on chest with tingling\",\n  \"diagnostic_image_base64\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"force_offline\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ai/chat",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ai",
+            "chat"
+          ]
+        }
+      }
+    },
+    {
+      "name": "23. Voice TTS - Offline Audio Synthesis & Viseme Generation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Voice TTS returns genuine RIFF/WAV audio payload with viseme timing cues\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.mime_type).to.eql(\"audio/wav\");",
+              "    pm.expect(json.audio_base64).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.duration_ms).to.be.above(0);",
+              "    pm.expect(json.viseme_cues).to.be.an(\"array\").and.not.empty;",
+              "    pm.expect(json.browser_speech_hint).to.have.property(\"lang\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Caution: SANS visual acuity shift detected. Don Thigh Cuffs.\",\n  \"severity\": \"caution\",\n  \"force_offline\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ai/tts",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ai",
+            "tts"
+          ]
+        }
+      }
+    },
+    {
+      "name": "24. Voice TTS - Critical Emergency Audio Alert Generation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Critical alert generates warble acoustic waveform and emergency status\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"critical\");",
+              "    pm.expect(json.provider_used).to.eql(\"local-riff-wav-synth\");",
+              "    pm.expect(json.audio_base64).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"CRITICAL: Severe suit depressurization. Abort EVA immediately.\",\n  \"severity\": \"critical\",\n  \"force_offline\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ai/tts",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ai",
+            "tts"
+          ]
+        }
+      }
+    },
+    {
+      "name": "25. Gamification - Get Astronaut Profile & Routine Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Response exposes standardized status, high_level, and technical fields\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.astronaut_id).to.eql(pm.environment.get(\"astronautId\") || \"AST-01\");",
+              "    pm.expect(json.readiness_streak_days).to.be.at.least(1);",
+              "    pm.expect(json.gachapon_tokens).to.be.at.least(0);",
+              "    pm.expect(json.routine_tasks).to.be.an(\"array\").with.lengthOf(5);",
+              "    pm.expect(json.catalog).to.be.an(\"array\").with.lengthOf(12);",
+              "    pm.expect(json.equipped_skin).to.have.property(\"skin_id\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/gamification/status?astronaut_id={{astronautId}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "gamification",
+            "status"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "26. Gamification - Complete Checkup & Roll Gachapon Companion Skin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Checkup complete advances streak, updates compliance, and returns standardized response\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.readiness_streak_days).to.be.above(1);",
+              "    pm.expect(json.tokens_awarded).to.eql(1);",
+              "    pm.expect(json.roll_performed).to.be.true;",
+              "    pm.expect(json.roll_result).to.have.property(\"rolled_skin\");",
+              "    pm.expect(json.roll_result.rarity).to.be.oneOf([\"COMMON\", \"RARE\", \"EPIC\", \"LEGENDARY\"]);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"completed_tasks\": [\n    \"task_morning_vitals\",\n    \"task_ared_exercise\"\n  ],\n  \"perform_gachapon_roll\": true,\n  \"deterministic_seed\": 42\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/gamification/checkup-complete",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "gamification",
+            "checkup-complete"
+          ]
+        }
+      }
+    },
+    {
+      "name": "27. Telemedicine - Inspect Tempus Pro Store-and-Forward Sync Queue",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Sync queue exposes packets with standard measures telemetry and Ridge forecasts\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json).to.have.property(\"comm_window_open\");",
+              "    pm.expect(json).to.have.property(\"pending_count\");",
+              "    pm.expect(json).to.have.property(\"transmitted_count\");",
+              "    pm.expect(json.packets).to.be.an(\"array\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemedicine/sync-queue?astronaut_id={{astronautId}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemedicine",
+            "sync-queue"
+          ],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "28. Telemedicine - Flush Sync Queue to Earth Flight Surgeon",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Queue flush transitions packets and returns standardized burst summary\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json).to.have.property(\"flushed_count\");",
+              "    pm.expect(json).to.have.property(\"remaining_pending_count\");",
+              "    pm.expect(json.ground_station).to.eql(\"NASA-JSC-MCC-Houston\");",
+              "    pm.expect(json.transmitted_at).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"force_flush\": true,\n  \"ground_station\": \"NASA-JSC-MCC-Houston\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemedicine/flush",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "telemedicine",
+            "flush"
+          ]
+        }
+      }
+    }
+  ]
+}

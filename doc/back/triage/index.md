@@ -7,3 +7,4 @@
 | Topic | Read this file | Mapped Code |
 | :--- | :--- | :--- |
 | `VitalSigns`, `TriageLevel`, `TriageAssessment`, and baseline rule thresholds | [`rules-and-models.md`](rules-and-models.md) | `backend/app/triage/models.py`, `backend/app/triage/engine.py` |
+| Specialized NASA HRP / CSA Clinical Domain Evaluators | [`evaluators/index.md`](evaluators/index.md) | `backend/app/triage/evaluators/` |
