@@ -46,6 +46,30 @@ docker compose up backend    # or: uvicorn app.main:app --port 8080 (from backen
 | `/medic` | Dedicated AI companion view |
 | `/compare` | Two-subject status comparison + radar |
 | `/settings` | Render quality, motion, view mode (persisted) |
+| `/register` | Operator enrollment — name/callsign/role + required face photo |
+| `/checkin` | Daily check-in via simulated visual-ID scan → confirm → streak |
+| `/users` | Operator management (medic-only; users see an access-denied panel) |
+
+## Local operator profiles (simulated session layer)
+
+A **local-only** session layer sits in front of the console:
+
+- `AuthGate` (in `AppShell`) redirects to `/register` when no operators exist
+  and to `/checkin` when the active operator has not checked in today.
+- Profiles live in `localStorage` under `astro-lab:user` (users, active
+  session, check-in records, claimed drum spins). **Nothing is sent to the
+  backend** — this is not an auth API.
+- The first enrolled operator is always `MEDIC` (flight surgeon); later ones
+  may be `medic` or `user`. `/users` and its nav entry are medic-only.
+- Enrollment requires a face photo (`getUserMedia` snapshot compressed to a
+  ~360px JPEG data URL, or file-upload fallback). `/checkin` runs a
+  **simulated visual-ID scan** — the camera only feeds a scan animation; no
+  face detection runs. Real recognition is a future adapter.
+- Every 5th check-in earns a **Prize Drum** spin (`WHEEL_EVERY_N` in
+  `stores/user-store.ts`): a 12-wedge drum labelled only COMMON / RARE /
+  LEGENDARY (`DRUM_WEIGHTS` in `data/gamification.ts`) that lands on a
+  locally rolled suit skin, preferring ones not already owned.
+- Camera capture requires a **secure context** — localhost or HTTPS.
 
 ## Environment variables
 
@@ -70,9 +94,10 @@ compose env and restart — no rebuild needed.
 
 ```text
 app/            App Router routes + /api/runtime-config route handler
-components/ui   primitives + Modal (Radix Dialog)
+components/ui   primitives + Modal (Radix Dialog) + FaceCapture (camera
+                capture/scan with upload fallback)
 components/layout  AppShell, Sidebar, Topbar, MissionContextBar,
-                   CommandPalette (⌘K), BootSequence
+                   CommandPalette (⌘K), BootSequence, AuthGate (session gate)
 components/three   astronaut-model (suit parts + organ drill layer), suit-geometry
                    (xEMU-style EVA suit), skin-geometry (full-body skin layer),
                    organ-geometry (28 organs), procedural
@@ -80,16 +105,20 @@ components/three   astronaut-model (suit parts + organ drill layer), suit-geomet
                    canvas-scene, model-viewport (+SVG fallback), toolbar,
                    zone/organ tooltips, shared-gallery (drei View previews)
 components/widgets   ZoneInspector, ChatPanel, TelemetryLogger,
-                     TrendsChart, ChecklistWidget (+Gachapon modal)
+                     TrendsChart, ChecklistWidget (+Gachapon modal),
+                     PrizeWheel (check-in reward drum)
 types/health.ts  Domain types (mirrors of backend DTOs + explorer model)
 data/            Curated deterministic datasets (crew/organs/mission/
                  telemetry/gamification)
 services/        health-provider contract · mock-provider · rest-provider · factory
 hooks/           Headless data/state hooks (useCrew, useBodyStatus, useTelemetry,
-                 useAICompanion, useLocationContext, useGamification, useSpeech…)
-stores/          app-store (persisted prefs) · viewer-store (per-viewport)
+                 useAICompanion, useLocationContext, useGamification,
+                 useSpeech, useCheckIn…)
+stores/          app-store (persisted prefs) · viewer-store (per-viewport) ·
+                 user-store (local operator profiles + check-ins)
 lib/             api.ts (REST client) · config.ts (runtime config)
-tests/           Vitest — HealthDataProvider contract suite
+tests/           Vitest — HealthDataProvider contract suite + user-store
+                 session logic
 ```
 
 See `doc/front/` for the authoritative documentation.

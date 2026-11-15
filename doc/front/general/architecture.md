@@ -26,17 +26,23 @@ frontend/
 │   ├── log/page.tsx              # Multi-modal telemetry ingest + triage + Tempus Pro queue/flush
 │   ├── medic/page.tsx            # Clinical AI copilot + RAG Space Medicine Knowledge Explorer
 │   ├── compare/page.tsx          # Two-subject comparison
-│   └── settings/page.tsx         # Quality / motion / view-mode prefs + DB snapshot restore
+│   ├── settings/page.tsx         # Quality / motion / view-mode prefs + DB snapshot restore
+│   ├── register/page.tsx         # Operator enrollment (face photo required)
+│   ├── checkin/page.tsx          # Daily check-in — simulated visual-ID scan
+│   └── users/page.tsx            # Operator management (medic-only)
 ├── components/
-│   ├── ui/                       # primitives (Eyebrow, StatusChip…), Modal (Radix)
+│   ├── ui/                       # primitives (Eyebrow, StatusChip…), Modal (Radix),
+│   │                             #   FaceCapture (capture/scan camera + upload fallback)
 │   ├── layout/                   # AppShell, Sidebar, Topbar, MissionContextBar (+ ECLSS popover),
-│   │                             #   CommandPalette (⌘K + DB reset), BootSequence
+│   │                             #   CommandPalette (⌘K + DB reset), BootSequence,
+│   │                             #   AuthGate (register/check-in session gate)
 │   ├── three/                    # astronaut-model, canvas-scene, model-viewport,
 │   │                             #   procedural (shared toolkit), suit-geometry (EVA suit),
 │   │                             #   organ-geometry (procedural anatomy), skin-geometry,
 │   │                             #   viewer-toolbar, zone/organ tooltips, shared-gallery, fallback-figure
 │   └── widgets/                  # ZoneInspector, ChatPanel (+ TTS viseme console), TelemetryLogger,
-│                                 #   TrendsChart (with 95% CI), ChecklistWidget (+ 12-Skin Suit Locker)
+│                                 #   TrendsChart (with 95% CI), ChecklistWidget (+ 12-Skin Suit Locker),
+│                                 #   PrizeWheel (check-in reward drum — COMMON/RARE/LEGENDARY)
 ├── types/health.ts               # Domain types + Phase 1–4 backend DTO mirrors
 ├── data/                         # Curated metadata, fallbacks & backend-aligned palettes
 ├── services/                     # health-provider (contract), mock-provider,
@@ -44,9 +50,12 @@ frontend/
 ├── hooks/                        # useProvider/useCrew/useBodyStatus/useTelemetry/
 │                                 #   useLocationContext/useHealthStatus/
 │                                 #   useAICompanion/useGamification/useSpeech (TTS + visemes)
-├── stores/                       # app-store (persist + synced location context), viewer-store
+│                                 #   useCheckIn (local session/streak/spin cadence)
+├── stores/                       # app-store (persist + synced location context), viewer-store,
+│                                 #   user-store (persisted local operator profiles, key `astro-lab:user`)
 ├── lib/                          # api.ts (15 typed FastAPI endpoints), config.ts, sample-media.ts
-└── tests/provider.test.ts        # HealthDataProvider contract suite
+└── tests/                        # provider.test.ts (contract suite) +
+                                  #   user-store.test.ts (session logic)
 
 ## Key architectural mandates
 
@@ -57,6 +66,7 @@ frontend/
 5. **Single selection/focus pipeline** — model clicks, zone lists, chat references, and AI `focus` actions all call `viewer-store.focus(zone)` (one store per `ViewerProvider`). `BodyZone.position` is model-local; `focus()` converts it to world space via `MODEL_GROUP_OFFSET` (`types/health.ts`).
 6. **Anatomical drill-down & live Vital merge** — `RestHealthDataProvider` merges backend `AstronautBodyStatusResponse` zone statuses, `self_exam_steps`, `recommended_countermeasures`, and `linked_vitals` onto structural `ORGAN_WATCH` baselines in `data/crew.ts`, keeping organ heartbeat/breath/peristalsis animations accurate while reflecting real DB values.
 7. **Viewport-height contract** — workspace pages bound themselves to the space `.main-area` leaves (`flex: 1 1 0%` + `min-height: 0` + `overflow: hidden` on the page root).
+8. **Local session gate** — `AuthGate` (inside `AppShell`, after `hydrateAppStore()` + `hydrateUserStore()`) redirects: no operator profiles → `/register`; active operator without a check-in for today → `/checkin`. Operator profiles (`LocalUser`: name, callsign, `medic`|`user` role, ~360px JPEG face-photo data URL, auto `AST-U0n` astronautId), `CheckInRecord`s and claimed drum spins persist **only** in `localStorage` under `astro-lab:user` — explicitly labelled simulated, not backend auth. The first profile is forced `medic`; `/users` renders for medics only. The 5-check-in Prize Drum (`stores/user-store.WHEEL_EVERY_N`, weighted via `data/gamification.DRUM_WEIGHTS`, segments labelled only COMMON/RARE/LEGENDARY) awards a catalog skin through `app-store.rewardSkin`. `FaceCapture` needs a secure context (localhost/HTTPS); its scan mode is animation-only — real face recognition is a future adapter.
 
 ## Backend Communication Contract
 

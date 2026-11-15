@@ -7,7 +7,7 @@
 
 | Subdomain / Task | Read this router | Status |
 | :--- | :--- | :--- |
-| App shell, routing, providers, stores/hooks, backend API integration | [`general/index.md`](general/index.md) | Active (Full 29-API REST integration) |
+| App shell, routing, providers, stores/hooks, backend API integration, local operator session (register/check-in/users + Prize Drum) | [`general/index.md`](general/index.md) | Active (Full 29-API REST integration + local session layer) |
 | Design blueprint the UI replicates (MECHAVIS reference) | [`mechavis-design-reference.md`](mechavis-design-reference.md) | Reference doc |
 | Text-to-Speech (TTS) & hands-free voice alert synthesis | [`tts/index.md`](tts/index.md) | Active (`POST /api/v1/ai/tts` + visemes via `useSpeech`) |
 | Client-side data models, body-zone visual model contracts | [`models/index.md`](models/index.md) | Initialized (`types/health.ts` + curated data + procedural part→zone map) |
