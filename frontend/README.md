@@ -73,7 +73,10 @@ app/            App Router routes + /api/runtime-config route handler
 components/ui   primitives + Modal (Radix Dialog)
 components/layout  AppShell, Sidebar, Topbar, MissionContextBar,
                    CommandPalette (⌘K), BootSequence
-components/three   astronaut-model (procedural + organ drill layer),
+components/three   astronaut-model (suit parts + organ drill layer), suit-geometry
+                   (xEMU-style EVA suit), skin-geometry (full-body skin layer),
+                   organ-geometry (28 organs), procedural
+                   (shared geometry toolkit),
                    canvas-scene, model-viewport (+SVG fallback), toolbar,
                    zone/organ tooltips, shared-gallery (drei View previews)
 components/widgets   ZoneInspector, ChatPanel, TelemetryLogger,

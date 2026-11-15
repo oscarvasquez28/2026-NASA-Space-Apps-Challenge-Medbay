@@ -6,7 +6,7 @@
 
 - **Next.js 16 (App Router) + React 19 + TypeScript** in [`frontend/`](../../../frontend/).
 - **Tailwind CSS 4** + design tokens in [`app/globals.css`](../../../frontend/app/globals.css) — dark workbench theme (`#101113` bg, hairline borders, blue-lavender accent, semantic status tokens `--status-nominal/caution/urgent/critical` — never hardcode status hex in components).
-- **Three.js + @react-three/fiber + drei + camera-controls** — procedural EVA-suit astronaut (capsule/sphere primitives only, no external assets), loaded via `dynamic({ ssr: false })` with an accessible SVG fallback.
+- **Three.js + @react-three/fiber + drei + camera-controls** — procedural xEMU-style EVA suit + sculpted procedural anatomy (no external assets, rig in `data/suit-rig.ts`), loaded via `dynamic({ ssr: false })` with an accessible SVG fallback.
 - **Zustand** — `app-store` (persisted prefs) + `viewer-store` (per-viewport store via React context).
 - **Motion** (boot/boot overlay, gachapon), **Recharts** (trends), **Radix Dialog** (modal/palette/drawer), **lucide-react**, **@fontsource** Inter + IBM Plex Mono.
 - **Vitest** — provider contract tests in `frontend/tests/`.
@@ -32,7 +32,10 @@ frontend/
 │   ├── layout/                   # AppShell, Sidebar, Topbar, MissionContextBar,
 │   │                             #   CommandPalette (⌘K), BootSequence
 │   ├── three/                    # astronaut-model, canvas-scene, model-viewport,
-│   │                             #   viewer-toolbar, zone-tooltip, shared-gallery,
+│   │                             #   procedural (shared toolkit), suit-geometry (EVA suit),
+│   │                             #   organ-geometry (procedural anatomy), skin-geometry,
+│   │                             #   viewer-toolbar,
+│   │                             #   zone/organ tooltips, shared-gallery,
 │   │                             #   fallback-figure (SVG, a11y)
 │   └── widgets/                  # ZoneInspector, ChatPanel, TelemetryLogger,
 │                                 #   TrendsChart, ChecklistWidget (+Gachapon)
@@ -56,7 +59,7 @@ frontend/
 4. **Location context** — `app-store.locationId` → `LocationProfile` (comm latency, blackout risk, hazard weights, AI link mode) via `useLocationContext`.
 5. **Honesty labels** — everything simulated carries `SIMULATED TELEMETRY · NOT A MEDICAL DEVICE` disclaimers (`<Disclaimer>` / `HONESTY_LABEL`).
 6. **Single selection/focus pipeline** — model clicks, zone lists, chat references and AI `focus` actions all call `viewer-store.focus(zone)` (one store per `ViewerProvider`). `BodyZone.position` is model-local; `focus()` converts it to world space via `MODEL_GROUP_OFFSET` (`types/health.ts`), the same constant the model group renders at.
-7. **Anatomical drill-down** — three depths: body → zone → organ. `viewer-store` tracks `selectedZoneId` + `selectedOrganId` + `focusDistance` (≈1.15 zone, ≈0.42 organ). `focusOrgan(organ)` keeps the parent zone selected; `focus()`/`select()`/`reset()` step back up. UI: `drill-breadcrumb` overlay, `OrganTooltip`, "INTERNAL STRUCTURES" list in `ZoneInspector`. Organ anatomy lives in `data/organs.ts` (shared atlas, parent-zone status inheritance) — not part of the provider contract.
+7. **Anatomical drill-down** — three layers (suit → skin → organs) and three depths: body → zone → organ, with fade/slide transitions, beacons for off-nominal organs at body depth and a wireframe overview that shows every organ through the suit (details: `doc/front/models/overview.md`). `viewer-store` tracks `selectedZoneId` + `selectedOrganId` + `focusDistance` (zone: fitted to its organs by `zoneFraming()`, organ: per-atlas `Organ.focusDistance`; camera `minDistance` 0.15). `focusOrgan(organ)` keeps the parent zone selected; `focus()`/`select()`/`reset()` step back up. UI: `drill-breadcrumb` overlay, `OrganTooltip`, "INTERNAL STRUCTURES" list in `ZoneInspector`. Organ anatomy lives in `data/organs.ts` (shared atlas, parent-zone status inheritance) with procedural meshes from `components/three/organ-geometry.ts` — not part of the provider contract.
 8. **Viewport-height contract** — workspace pages bound themselves to the space `.main-area` leaves (`flex: 1 1 0%` + `min-height: 0` + `overflow: hidden` on the page root), never `min-height:100%`/`height:100%` (content-driven → overflows the fold by sibling heights like `.ctxbar`'s). `.workspace-grid` uses `grid-template-rows: minmax(0,1fr)` so the inspector's content can't inflate the row; `.main-area > *:not(.ctxbar)` carries the fill rule (equal specificity used to override `.ctxbar`'s own `flex` and balloon it).
 
 ## Backend Communication Contract
