@@ -37,10 +37,11 @@
 - **Purpose:** Synthesizes and returns astronaut health across 6 anatomical body zones (`head_eyes`, `cardiovascular_chest`, `spine_skeletal`, `musculoskeletal_limbs`, `gut_microbiome`, `skin`) enriched dynamically by the 4 NASA HRP / CSA domain evaluators.
 - **Query Parameter:** `astronaut_id: str` (default `"AST-01"`).
 - **Response (`200 OK`):** `AstronautBodyStatusResponse` with top-level `status`, `overall_status`, `overall_ui_token`, `high_level`, and `technical`, plus per-zone semantic UI tokens (`status-nominal`, `status-caution`, `status-critical`), dual-mode summaries (`high_level` for crew, `technical` for flight surgeons), self-exam checklists, and targeted countermeasures.
+- **`linked_vitals` per zone** (drives the frontend VITAL SIGNS tiles): `head_eyes` → `visual_acuity_logmar`, `co2_partial_pressure_mmhg`, `core_temp_c` (also feeds the ≥39.5 °C head-critical rule), `head_symptoms`; `cardiovascular_chest` → `heart_rate_bpm`, `spo2_percent`, `blood_pressure_mmhg` ("sys/dia"), `suit_pressure_kpa`; `spine_skeletal` → `bone_mineral_density_t_score`, `spinal_symptoms`; `musculoskeletal_limbs` → `sleep_hours`, `limb_symptoms`; `gut_microbiome` → `blood_sugar_mg_dl`, `gi_symptoms`; `skin` → `radiation_dose_msv`, `skin_image_present`, `skin_symptoms`.
 
 ### `GET /api/v1/trends/{indicator}` (`backend/app/api/routes/trends.py`)
 - **Purpose:** Analyzes time-series physiological history, applies cold start synthesis when fewer than 5 records exist, overlays 3 operational mission events, and computes quadratic polynomial Ridge regression forecasts with 95% confidence intervals and clinical threshold warnings.
-- **Path Parameter:** `indicator: str` (supported: `heart_rate_bpm`, `spo2_percent`, `core_temp_c`, `radiation_dose_msv`, `blood_sugar_mg_dl`, `bone_mineral_density_t_score`, `visual_acuity_logmar`, `mission_readiness_score`). Returns `400 Bad Request` if indicator is unsupported.
+- **Path Parameter:** `indicator: str` (supported: `heart_rate_bpm`, `spo2_percent`, `core_temp_c`, `radiation_dose_msv`, `blood_sugar_mg_dl`, `bone_mineral_density_t_score`, `visual_acuity_logmar`, `mission_readiness_score`, `sleep_hours`, `systolic_bp_mmhg`, `suit_pressure_kpa`, `co2_partial_pressure_mmhg`). Returns `400 Bad Request` if indicator is unsupported.
 - **Query Parameters:**
   - `astronaut_id: str = "AST-01"`
   - `history_limit: int = 50` (5 to 500)
@@ -101,7 +102,7 @@
 - **Purpose:** Runs local OpenCV YuNet + SFace face detection and cosine similarity matching against `face_credentials`. Returns `status` (`matched` | `unknown_face` | `no_face`), `matched_user`, and `confidence`.
 
 ### `POST /api/v1/auth/checkin` (`backend/app/api/routes/auth.py`)
-- **Purpose:** Idempotently records a daily operator check-in, computes consecutive streak and `WHEEL_EVERY_N = 5` spin eligibility, and syncs `GamificationProfileRecord`.
+- **Purpose:** Idempotently records a daily operator check-in, computes consecutive streak and spin eligibility (one spin per `WHEEL_CADENCE_DAYS` consecutive check-in days, default `7`), and syncs `GamificationProfileRecord`.
 
 ### `POST /api/v1/auth/claim-wheel-spin` (`backend/app/api/routes/auth.py`)
 - **Purpose:** Consumes a Prize Drum spin (`wheel_spins_claimed`) and persists any unlocked companion skin into `GamificationProfileRecord`.
@@ -125,9 +126,9 @@
 - **Response (`200 OK`):** `TelemedicineFlushResponse` with `status`, `high_level`, `technical`, `flushed_count`, `remaining_pending_count`, `ground_station`, `transmitted_at`, and `flushed_packets`.
 
 ### `PUT /api/v1/tests/dbsnapshot` (`backend/app/api/routes/tests.py`)
-- **Purpose:** Restores runtime database tables (`operator_users`, `face_credentials`, `operator_checkins`, `telemedicine_alerts`, `telemetry_records`, `gamification_profiles`, `location_contexts`, and verified `medical_knowledge_chunks`) back to the clean baseline seeder snapshot for repeatable test runs and live judge demonstrations. (`PATCH` and `POST` are also accepted on the same path as hidden convenience aliases.)
+- **Purpose:** Restores runtime database tables back to a saved restore point for repeatable test runs and live judge demonstrations. Restore priority: (1) if a frozen `snapshot` schema exists on the database (created by `scripts/db-snapshot.sh`), `public` is rebuilt from it — `TRUNCATE public.*` then `INSERT ... SELECT` per table with column-intersection lists plus serial/identity sequence resets; (2) otherwise it falls back to the clean seeder baseline (`operator_users`, `face_credentials`, `operator_checkins`, `telemedicine_alerts`, `telemetry_records`, `gamification_profiles`, `location_contexts` deleted; `medical_knowledge_chunks` verified; AST-01 baseline re-seeded). Non-PostgreSQL dialects always take the seeder path. (`PATCH` and `POST` are also accepted on the same path as hidden convenience aliases.)
 - **Request Body:** None required.
-- **Response (`200 OK`):** `DatabaseSnapshotRestoreResponse` containing `status` (`"nominal"`), `high_level`, `technical`, `restored` (`true`), `restored_at`, `default_astronaut_id` (`"AST-01"`), `default_location_setting` (`"Space Station [0g]"`), and `seeded_counts`.
+- **Response (`200 OK`):** `DatabaseSnapshotRestoreResponse` containing `status` (`"nominal"`), `high_level`, `technical`, `restored` (`true`), `restored_at`, `default_astronaut_id` (first operator id on snapshot restores, else `"AST-01"`), `default_location_setting`, and `seeded_counts` (per-table restored row counts on snapshot restores, else seeder counts).
 
 
 

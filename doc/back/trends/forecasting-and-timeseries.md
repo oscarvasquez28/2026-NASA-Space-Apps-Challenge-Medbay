@@ -14,6 +14,10 @@ The time-series trends engine (`backend/app/trends/service.py`) powers `GET /api
 - `bone_mineral_density_t_score` (`T-score`)
 - `visual_acuity_logmar` (`LogMAR`)
 - `mission_readiness_score` (`%`)
+- `sleep_hours` (`h`)
+- `systolic_bp_mmhg` (`mmHg`)
+- `suit_pressure_kpa` (`kPa`)
+- `co2_partial_pressure_mmhg` (`mmHg`)
 
 ## Algorithmic Workflow
 
