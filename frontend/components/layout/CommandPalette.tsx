@@ -130,7 +130,7 @@ export function CommandPalette() {
         ? [
             {
               id: "db-snapshot-restore",
-              label: "Restore Database Seeder Snapshot (PUT /api/v1/tests/dbsnapshot)",
+              label: "Reset mission baseline data",
               kind: "mode" as const,
               run: () => {
                 void provider.restoreDatabaseSnapshot().then(() => {

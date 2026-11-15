@@ -1,10 +1,10 @@
 /**
  * RestHealthDataProvider — full phase 1–4 HTTP integration with FastAPI.
  *
- * Maps all 29 endpoints (health, operational context & 5-hazards, baseline triage,
- * multi-modal telemetry ingest, 6-zone anatomical body status, trends with 95% CI,
- * RAG knowledge base search, clinical AI chat, voice TTS + visemes, gamification
- * & gachapon, Tempus Pro telemedicine queue/flush, and DB seeder snapshot).
+ * Connects all FastAPI Phase 1–4 endpoints (health, operational context & 5-hazards,
+ * baseline triage, multi-modal telemetry ingest, 6-zone anatomical body status, trends
+ * with 95% CI, RAG knowledge base search, clinical AI chat, voice TTS + visemes,
+ * gamification & gachapon, Tempus Pro telemedicine queue/flush, and baseline reset).
  *
  * Preserves local crew/organ geometric metadata (`partIds`, `position`, watch keys)
  * so the 3D holographic scene and organ animations reflect live backend telemetry.

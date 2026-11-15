@@ -318,7 +318,7 @@ export function flushTelemedicineQueue(
   });
 }
 
-/* ---------- 10. Database Seeder Snapshot (Test Reset) ---------- */
+/* ---------- 10. Mission Baseline Reset ---------- */
 
 export function restoreDatabaseSnapshot(): Promise<DatabaseSnapshotRestoreResponse> {
   return apiFetch<DatabaseSnapshotRestoreResponse>("/api/v1/tests/dbsnapshot", {

@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * /settings — persisted app preferences + DB seeder snapshot restore
- * (PUT /api/v1/tests/dbsnapshot — Postman #29).
+ * /settings — persisted app preferences + baseline data reset.
  */
 
 import { RotateCcw } from "lucide-react";
@@ -185,15 +184,15 @@ export default function SettingsPage() {
           <span className="micro">{providerKind ?? "resolving…"}</span>,
         )}
         {row(
-          "Mission database snapshot (#29)",
-          "Reset telemetry history, location context, gamification, and telemedicine queue to clean baseline seed",
+          "Mission baseline data",
+          "Reset telemetry history, location context, gamification, and telemedicine queue to baseline defaults",
           <button
             className="btn"
             disabled={!provider || restoring}
             onClick={() => void handleRestore()}
           >
             <RotateCcw size={11} />
-            {restoring ? "Restoring…" : "Restore DB Snapshot"}
+            {restoring ? "Restoring…" : "Reset Baseline"}
           </button>,
         )}
       </div>
@@ -211,7 +210,7 @@ export default function SettingsPage() {
       {restoreRes && (
         <div className="callout" style={{ marginTop: 14 }} role="status">
           <div className="micro-8" style={{ color: "var(--status-nominal)" }}>
-            SNAPSHOT RESTORED · {restoreRes.default_astronaut_id} ·{" "}
+            BASELINE RESTORED · {restoreRes.default_astronaut_id} ·{" "}
             {restoreRes.default_location_setting} ·{" "}
             {new Date(restoreRes.restored_at).toLocaleTimeString()}
           </div>
@@ -221,7 +220,7 @@ export default function SettingsPage() {
               : restoreRes.high_level}
           </p>
           <div className="micro-8" style={{ marginTop: 6, color: "var(--dim)" }}>
-            SEEDED COUNTS:{" "}
+            BASELINE RECORDS:{" "}
             {Object.entries(restoreRes.seeded_counts)
               .map(([k, v]) => `${k}=${v}`)
               .join(" · ")}

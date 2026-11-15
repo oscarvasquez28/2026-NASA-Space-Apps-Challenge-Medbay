@@ -120,7 +120,7 @@ function LogInner() {
 
       <TelemetryLogger crewId={crewId} onSubmitted={() => void loadQueue()} />
 
-      {/* Tempus Pro Telemedicine Sync Queue (Postman #27 & #28) */}
+      {/* Tempus Pro Telemedicine Sync Queue */}
       <div className="panel panel-pad">
         <div
           style={{
@@ -179,7 +179,7 @@ function LogInner() {
             onClick={() => void flushQueue(false)}
           >
             <Send size={11} />
-            {flushing ? "Relaying…" : "Flush Pending (#28)"}
+            {flushing ? "Relaying…" : "Flush Pending"}
           </button>
           <button
             className="btn"

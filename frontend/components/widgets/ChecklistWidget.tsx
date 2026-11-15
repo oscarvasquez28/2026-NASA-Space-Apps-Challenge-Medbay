@@ -3,7 +3,7 @@
 /**
  * ChecklistWidget + GachaponModal + 12-Skin Suit Locker — gamification module (G).
  * Synced with GET /api/v1/gamification/status and
- * POST /api/v1/gamification/checkup-complete (Postman #25 & #26).
+ * POST /api/v1/gamification/checkup-complete.
  */
 
 import { AnimatePresence, motion } from "motion/react";

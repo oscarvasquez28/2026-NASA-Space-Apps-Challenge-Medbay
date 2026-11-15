@@ -3,8 +3,7 @@
 /**
  * TelemetryLogger — module E.
  * Multi-modal clinical telemetry ingest (POST /api/v1/telemetry/ingest),
- * standalone triage evaluation (POST /api/v1/triage/evaluate), scenario presets
- * covering Postman #4–#9 & #16–#17, and behavioral logs.
+ * standalone triage evaluation (POST /api/v1/triage/evaluate), and behavioral logs.
  */
 
 import { Activity, Camera, SendHorizontal, Trash2 } from "lucide-react";
@@ -16,7 +15,6 @@ import {
   StatusChip,
 } from "@/components/ui/primitives";
 import { useProvider } from "@/hooks/useProvider";
-import { createSampleDiagnosticPngFile } from "@/lib/sample-media";
 import { useAppStore } from "@/stores/app-store";
 import type {
   BehaviorLog,
@@ -37,154 +35,22 @@ const ANATOMICAL_ZONES = [
   { id: "skin", label: "Skin / Radiation" },
 ];
 
-interface ScenarioPreset {
-  id: string;
-  label: string;
-  targetZone?: string;
-  symptoms?: string;
-  attachSampleImage?: boolean;
-  sampleName?: string;
-  fields: Record<string, string>;
-}
-
-const SCENARIO_PRESETS: ScenarioPreset[] = [
-  {
-    id: "nominal",
-    label: "#4/#5 Nominal Station",
-    targetZone: "",
-    symptoms: "",
-    fields: {
-      heart_rate_bpm: "74",
-      spo2_percent: "98.2",
-      core_temp_c: "37.0",
-      systolic_bp_mmhg: "120",
-      diastolic_bp_mmhg: "80",
-      blood_sugar_mg_dl: "94",
-      sleep_hours: "7.5",
-      mood_score: "8",
-      stress_level: "2",
-      suit_pressure_kpa: "101.3",
-      co2_partial_pressure_mmhg: "2.3",
-      radiation_dose_msv: "0.4",
-      visual_acuity_logmar: "0.0",
-      bone_mineral_density_t_score: "-0.2",
-    },
-  },
-  {
-    id: "sans_co2",
-    label: "#6 SANS & CO2 Caution",
-    targetZone: "head_eyes",
-    symptoms: "mild headache, near vision blur",
-    fields: {
-      heart_rate_bpm: "78",
-      spo2_percent: "97.5",
-      core_temp_c: "37.1",
-      systolic_bp_mmhg: "124",
-      diastolic_bp_mmhg: "82",
-      blood_sugar_mg_dl: "98",
-      sleep_hours: "6.5",
-      mood_score: "7",
-      stress_level: "4.5",
-      suit_pressure_kpa: "101.0",
-      co2_partial_pressure_mmhg: "4.2",
-      radiation_dose_msv: "1.2",
-      visual_acuity_logmar: "0.28",
-      bone_mineral_density_t_score: "-0.4",
-    },
-  },
-  {
-    id: "eva_critical",
-    label: "#7/#17 EVA Hypoxia Critical",
-    targetZone: "cardiovascular_chest",
-    symptoms: "dizziness, dyspnea, cyanosis",
-    fields: {
-      heart_rate_bpm: "145",
-      spo2_percent: "84.0",
-      core_temp_c: "37.6",
-      systolic_bp_mmhg: "148",
-      diastolic_bp_mmhg: "94",
-      blood_sugar_mg_dl: "105",
-      sleep_hours: "6.0",
-      mood_score: "4",
-      stress_level: "8.8",
-      suit_pressure_kpa: "22.0",
-      co2_partial_pressure_mmhg: "4.5",
-      radiation_dose_msv: "3.0",
-      visual_acuity_logmar: "0.1",
-      bone_mineral_density_t_score: "-0.5",
-    },
-  },
-  {
-    id: "radiation_skin",
-    label: "#8 Radiation & Skin Rash",
-    targetZone: "skin",
-    symptoms: "erythema, cutaneous radiation lesion",
-    attachSampleImage: true,
-    sampleName: "skin-rash-scan.png",
-    fields: {
-      heart_rate_bpm: "88",
-      spo2_percent: "97.8",
-      core_temp_c: "37.2",
-      systolic_bp_mmhg: "126",
-      diastolic_bp_mmhg: "82",
-      blood_sugar_mg_dl: "102",
-      sleep_hours: "4.8",
-      mood_score: "5",
-      stress_level: "7.5",
-      suit_pressure_kpa: "101.2",
-      co2_partial_pressure_mmhg: "2.4",
-      radiation_dose_msv: "28.0",
-      visual_acuity_logmar: "0.05",
-      bone_mineral_density_t_score: "-0.6",
-    },
-  },
-  {
-    id: "osteopenia_glucose",
-    label: "#9 Osteopenia & Insulin",
-    targetZone: "spine_skeletal",
-    symptoms: "lumbar stiffness, fatigue",
-    fields: {
-      heart_rate_bpm: "76",
-      spo2_percent: "98.0",
-      core_temp_c: "36.9",
-      systolic_bp_mmhg: "122",
-      diastolic_bp_mmhg: "80",
-      blood_sugar_mg_dl: "122",
-      sleep_hours: "6.8",
-      mood_score: "6.5",
-      stress_level: "4.2",
-      suit_pressure_kpa: "101.3",
-      co2_partial_pressure_mmhg: "2.2",
-      radiation_dose_msv: "4.5",
-      visual_acuity_logmar: "0.08",
-      bone_mineral_density_t_score: "-1.8",
-    },
-  },
-  {
-    id: "sans_multimodal",
-    label: "#16 SANS Optic + Scan",
-    targetZone: "head_eyes",
-    symptoms: "optic disc edema, visual blurring",
-    attachSampleImage: true,
-    sampleName: "optic-fundus-scan.png",
-    fields: {
-      heart_rate_bpm: "82",
-      spo2_percent: "97.2",
-      core_temp_c: "37.0",
-      systolic_bp_mmhg: "128",
-      diastolic_bp_mmhg: "84",
-      blood_sugar_mg_dl: "96",
-      sleep_hours: "6.2",
-      mood_score: "6",
-      stress_level: "5.2",
-      suit_pressure_kpa: "101.1",
-      co2_partial_pressure_mmhg: "4.1",
-      radiation_dose_msv: "2.1",
-      visual_acuity_logmar: "0.32",
-      bone_mineral_density_t_score: "-0.7",
-    },
-  },
-];
+const DEFAULT_VITALS_FORM: Record<string, string> = {
+  heart_rate_bpm: "72",
+  spo2_percent: "98.5",
+  core_temp_c: "37.0",
+  systolic_bp_mmhg: "120",
+  diastolic_bp_mmhg: "80",
+  blood_sugar_mg_dl: "95",
+  suit_pressure_kpa: "",
+  co2_partial_pressure_mmhg: "",
+  radiation_dose_msv: "",
+  visual_acuity_logmar: "",
+  bone_mineral_density_t_score: "",
+  sleep_hours: "",
+  mood_score: "",
+  stress_level: "",
+};
 
 const VITAL_FIELDS: { key: string; label: string; unit: string; required?: boolean }[] = [
   { key: "heart_rate_bpm", label: "Heart rate", unit: "bpm", required: true },
@@ -227,9 +93,7 @@ export function TelemetryLogger({ crewId, onSubmitted }: LoggerProps) {
   const viewMode = useAppStore((s) => s.viewMode);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const [form, setForm] = useState<Record<string, string>>(
-    SCENARIO_PRESETS[0].fields,
-  );
+  const [form, setForm] = useState<Record<string, string>>(DEFAULT_VITALS_FORM);
   const [targetZone, setTargetZone] = useState("");
   const [symptoms, setSymptoms] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -248,16 +112,6 @@ export function TelemetryLogger({ crewId, onSubmitted }: LoggerProps) {
     if (!raw) return undefined;
     const v = Number(raw);
     return Number.isFinite(v) ? v : undefined;
-  };
-
-  const applyPreset = (p: ScenarioPreset) => {
-    setForm({ ...p.fields });
-    setTargetZone(p.targetZone ?? "");
-    setSymptoms(p.symptoms ?? "");
-    setImageFile(
-      p.attachSampleImage ? createSampleDiagnosticPngFile(p.sampleName) : null,
-    );
-    setError(null);
   };
 
   const parsedSymptoms = () =>
@@ -372,29 +226,6 @@ export function TelemetryLogger({ crewId, onSubmitted }: LoggerProps) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* scenario presets strip */}
-      <div className="panel panel-pad">
-        <Eyebrow>Clinical test scenario presets (Postman #4–#9 & #16–#17)</Eyebrow>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            marginTop: 10,
-          }}
-        >
-          {SCENARIO_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              className="camera-preset"
-              onClick={() => applyPreset(p)}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div
         style={{
           display: "grid",
@@ -710,17 +541,6 @@ export function TelemetryLogger({ crewId, onSubmitted }: LoggerProps) {
                   onClick={() => fileRef.current?.click()}
                 >
                   Choose Image…
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() =>
-                    setImageFile(
-                      createSampleDiagnosticPngFile("sample-diagnostic-scan.png"),
-                    )
-                  }
-                >
-                  Attach Sample PNG (#16)
                 </button>
                 {imageFile && (
                   <button

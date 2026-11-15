@@ -16,6 +16,7 @@ import {
   Camera,
   Crosshair,
   HeartPulse,
+  Moon,
   Rocket,
   RotateCcw,
   SendHorizontal,
@@ -29,66 +30,20 @@ import { useEffect, useRef, useState } from "react";
 import { Disclaimer, Eyebrow } from "@/components/ui/primitives";
 import { useAICompanion } from "@/hooks/useAICompanion";
 import { useSpeech } from "@/hooks/useSpeech";
-import {
-  fileToRawBase64,
-  SAMPLE_DIAGNOSTIC_PNG_BASE64,
-} from "@/lib/sample-media";
+import { fileToRawBase64 } from "@/lib/sample-media";
 import { useAppStore } from "@/stores/app-store";
 import { useViewerApi, useViewerStore } from "@/stores/viewer-store";
-import type { BackendStatus, BodyZone, CrewMember, ZoneId } from "@/types/health";
+import type { BodyZone, CrewMember, ZoneId } from "@/types/health";
 
-interface FastAction {
-  icon: typeof Activity;
-  label: string;
-  prompt: string;
-  forceOffline?: boolean;
-  attachSampleImage?: boolean;
-}
-
-const FAST_ACTIONS: FastAction[] = [
-  {
-    icon: Brain,
-    label: "#20 SANS vision & CO2",
-    prompt:
-      "What is happening to my vision and cabin CO2? Should I adjust exertion?",
-  },
-  {
-    icon: Rocket,
-    label: "#21 EVA hypoxia risk",
-    prompt:
-      "Evaluate EVA cardiorespiratory decompression bends risk and hypoxic threshold telemetry.",
-  },
-  {
-    icon: Camera,
-    label: "#22 Offline rash scan",
-    prompt:
-      "I notice a skin rash lesion after solar particle exposure. Perform offline multimodal triage.",
-    forceOffline: true,
-    attachSampleImage: true,
-  },
-  {
-    icon: AlertTriangle,
-    label: "Critical zones",
-    prompt: "Which anatomical zones are critical or caution right now?",
-  },
-  {
-    icon: ShieldCheck,
-    label: "Countermeasures",
-    prompt: "What clinical countermeasures apply to my current risks?",
-  },
-  {
-    icon: HeartPulse,
-    label: "Cardiac & blood pressure",
-    prompt: "Summarize my cardiovascular chest vitals and readouts.",
-  },
-  {
-    icon: Crosshair,
-    label: "Selected zone brief",
-    prompt: "Tell me about the selected anatomical zone",
-  },
+const FAST_ACTIONS = [
+  { icon: Activity, label: "Explain my status", prompt: "Explain my current status" },
+  { icon: AlertTriangle, label: "Critical zones", prompt: "Which zones are critical right now?" },
+  { icon: Rocket, label: "EVA prep", prompt: "Am I ready for EVA? Run me through prep." },
+  { icon: Moon, label: "Sleep & stress", prompt: "How is my sleep and stress profile?" },
+  { icon: ShieldCheck, label: "Countermeasures", prompt: "What countermeasures apply to my risks?" },
+  { icon: HeartPulse, label: "Heart status", prompt: "How is my heart doing?" },
+  { icon: Crosshair, label: "Ask about selected zone", prompt: "Tell me about the selected zone" },
 ];
-
-const VISEME_SHAPES = ["rest", "A", "E", "I", "O", "U", "M"] as const;
 
 interface ChatPanelProps {
   member: CrewMember;
@@ -121,13 +76,6 @@ export function ChatPanel({
     null,
   );
 
-  const [voiceConsoleOpen, setVoiceConsoleOpen] = useState(false);
-  const [ttsText, setTtsText] = useState(
-    "Caution: cabin CO2 rising and mild SANS visual shift detected.",
-  );
-  const [ttsSeverity, setTtsSeverity] = useState<BackendStatus>("caution");
-  const [ttsOffline, setTtsOffline] = useState(true);
-
   const scrollRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
@@ -136,26 +84,14 @@ export function ChatPanel({
     if (z) viewerApi.getState().focus(z);
   };
 
-  const submit = (
-    text: string,
-    overrideOpts?: {
-      forceOffline?: boolean;
-      diagnosticImageBase64?: string | null;
-    },
-  ) => {
+  const submit = (text: string) => {
     const prompt = text.trim();
     if (!prompt) return;
-    const offline = overrideOpts?.forceOffline ?? forceOffline;
-    const img =
-      overrideOpts?.diagnosticImageBase64 !== undefined
-        ? overrideOpts.diagnosticImageBase64
-        : attachedImageBase64;
-    if (overrideOpts?.forceOffline !== undefined) {
-      setForceOffline(overrideOpts.forceOffline);
-    }
+    const img = attachedImageBase64;
     setDraft("");
     setAttachedImageBase64(null);
     setAttachedImageName(null);
+    if (imgInputRef.current) imgInputRef.current.value = "";
 
     void send(
       prompt,
@@ -168,10 +104,15 @@ export function ChatPanel({
             preloadedResponse: response.voicePayload,
             astronautId: member.id,
           });
+        } else if (includeVoice) {
+          void speech.speak(response.message, {
+            forceOffline: response.offlineMode ?? forceOffline,
+            astronautId: member.id,
+          });
         }
       },
       {
-        forceOffline: offline,
+        forceOffline,
         includeVoice,
         diagnosticImageBase64: img,
       },
@@ -205,15 +146,6 @@ export function ChatPanel({
             Clinical copilot.
           </div>
         </div>
-        <button
-          className="btn"
-          aria-pressed={voiceConsoleOpen}
-          onClick={() => setVoiceConsoleOpen((v) => !v)}
-          title="Voice TTS & Viseme Console (POST /api/v1/ai/tts)"
-        >
-          <Volume2 size={11} />
-          TTS
-        </button>
         <button className="btn" onClick={reset} aria-label="New conversation">
           <RotateCcw size={11} />
         </button>
@@ -273,164 +205,6 @@ export function ChatPanel({
         </span>
       </div>
 
-      {/* Voice TTS & Viseme Console (Postman #23, #23.2, #24) */}
-      {voiceConsoleOpen && (
-        <div
-          style={{
-            padding: "10px 14px",
-            borderBottom: "1px solid var(--line)",
-            background: "rgba(15, 23, 42, 0.35)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Eyebrow>Voice TTS & Lip-Sync Viseme Test (#23 / #24)</Eyebrow>
-            <span style={{ flex: 1 }} />
-            <div style={{ display: "flex", gap: 3 }}>
-              {VISEME_SHAPES.map((v) => (
-                <span
-                  key={v}
-                  className="micro-8"
-                  style={{
-                    padding: "2px 5px",
-                    border: "1px solid var(--line)",
-                    borderRadius: 3,
-                    background:
-                      speech.activeViseme === v ? "var(--accent)" : "transparent",
-                    color: speech.activeViseme === v ? "#060911" : "var(--dim)",
-                    fontWeight: speech.activeViseme === v ? 700 : 400,
-                  }}
-                >
-                  {v}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              marginTop: 8,
-            }}
-          >
-            <button
-              className="camera-preset"
-              onClick={() => {
-                const txt =
-                  "Caution: SANS ocular drift and elevated CO2 logged. Begin self-exam.";
-                setTtsText(txt);
-                setTtsSeverity("caution");
-                setTtsOffline(true);
-                void speech.speak(txt, {
-                  severity: "caution",
-                  forceOffline: true,
-                  astronautId: member.id,
-                });
-              }}
-            >
-              #23 Offline Caution
-            </button>
-            <button
-              className="camera-preset"
-              onClick={() => {
-                const txt =
-                  "Nominal telemetry confirmed. Daily orbital exercise target met.";
-                setTtsText(txt);
-                setTtsSeverity("nominal");
-                setTtsOffline(false);
-                void speech.speak(txt, {
-                  severity: "nominal",
-                  forceOffline: false,
-                  astronautId: member.id,
-                });
-              }}
-            >
-              #23.2 Online Voice
-            </button>
-            <button
-              className="camera-preset"
-              onClick={() => {
-                const txt =
-                  "CRITICAL ALERT: Suit pressure below 29.6 kilopascals and SpO2 critical. Abort EVA now.";
-                setTtsText(txt);
-                setTtsSeverity("critical");
-                setTtsOffline(true);
-                void speech.speak(txt, {
-                  severity: "critical",
-                  forceOffline: true,
-                  astronautId: member.id,
-                });
-              }}
-            >
-              #24 Critical Emergency
-            </button>
-          </div>
-
-          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-            <input
-              type="text"
-              style={{ flex: 1, minWidth: 160 }}
-              value={ttsText}
-              onChange={(e) => setTtsText(e.target.value)}
-              aria-label="TTS announcement text"
-            />
-            <select
-              className="ctx-select"
-              value={ttsSeverity}
-              aria-label="TTS severity"
-              onChange={(e) => setTtsSeverity(e.target.value as BackendStatus)}
-            >
-              <option value="nominal">nominal</option>
-              <option value="caution">caution</option>
-              <option value="critical">critical</option>
-            </select>
-            <label className="micro-8" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <input
-                type="checkbox"
-                checked={ttsOffline}
-                onChange={(e) => setTtsOffline(e.target.checked)}
-              />
-              Offline
-            </label>
-            {speech.speaking ? (
-              <button className="btn" onClick={() => speech.cancel()}>
-                <Square size={10} /> Stop
-              </button>
-            ) : (
-              <button
-                className="btn btn-primary"
-                disabled={speech.loading || !ttsText.trim()}
-                onClick={() =>
-                  void speech.speak(ttsText, {
-                    severity: ttsSeverity,
-                    forceOffline: ttsOffline,
-                    astronautId: member.id,
-                  })
-                }
-              >
-                <Volume2 size={10} />
-                {speech.loading ? "Synth…" : "Speak"}
-              </button>
-            )}
-          </div>
-
-          {speech.lastResponse && (
-            <div className="micro-8" style={{ marginTop: 6, color: "var(--muted)" }}>
-              {speech.lastResponse.provider_used} · {speech.lastResponse.mime_type} ·{" "}
-              {speech.lastResponse.duration_ms}ms ·{" "}
-              {speech.lastResponse.viseme_cues.length} viseme cues ·{" "}
-              {speech.lastResponse.offline_mode ? "offline synth" : "cloud relay"}
-            </div>
-          )}
-          {speech.error && (
-            <div className="micro-8" style={{ marginTop: 4, color: "var(--status-critical)" }}>
-              {speech.error}
-            </div>
-          )}
-        </div>
-      )}
-
       {ctxZone && (
         <div style={{ padding: "8px 14px 0" }}>
           <span className="context-pill">
@@ -467,15 +241,9 @@ export function ChatPanel({
                     className="fast-action"
                     onClick={() =>
                       submit(
-                        fa.label === "Selected zone brief" && ctxZone
+                        fa.label === "Ask about selected zone" && ctxZone
                           ? `Tell me about ${ctxZone.name}`
                           : fa.prompt,
-                        {
-                          forceOffline: fa.forceOffline,
-                          diagnosticImageBase64: fa.attachSampleImage
-                            ? SAMPLE_DIAGNOSTIC_PNG_BASE64
-                            : undefined,
-                        },
                       )
                     }
                   >
@@ -706,17 +474,6 @@ export function ChatPanel({
           >
             <Camera size={11} />
             Image
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              setAttachedImageBase64(SAMPLE_DIAGNOSTIC_PNG_BASE64);
-              setAttachedImageName("sample-rash-scan.png (#22)");
-            }}
-            title="Attach valid sample PNG for multimodal test #22"
-          >
-            Sample PNG
           </button>
           <Disclaimer>HYBRID CLINICAL ROUTER + RAG</Disclaimer>
           <span style={{ flex: 1 }} />

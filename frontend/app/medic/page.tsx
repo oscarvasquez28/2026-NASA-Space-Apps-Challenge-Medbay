@@ -25,10 +25,14 @@ import type { KnowledgeSearchResponse } from "@/types/health";
 
 const RAG_CATEGORIES = [
   "",
-  "SANS / Neuro-Ocular",
+  "SANS",
   "EVA/Hypoxia",
-  "Radiation",
-  "Musculoskeletal",
+  "Radiation/CANS",
+  "Countermeasures/Aging",
+  "Cardiovascular",
+  "Skin/Microbiome",
+  "Behavioral/Sleep",
+  "Telemedicine",
 ];
 
 function MedicInner() {
@@ -42,16 +46,16 @@ function MedicInner() {
   const focus = useViewerStore((s) => s.focus);
 
   const [leftTab, setLeftTab] = useState<"zones" | "rag">("zones");
-  const [query, setQuery] = useState("SANS optic disc edema");
+  const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
-  const [topK, setTopK] = useState(2);
+  const [topK] = useState(4);
   const [ragData, setRagData] = useState<KnowledgeSearchResponse | null>(null);
   const [ragLoading, setRagLoading] = useState(false);
   const [ragError, setRagError] = useState<string | null>(null);
 
   const runSearch = useCallback(
     async (qText: string, catText: string, k: number) => {
-      if (!provider || !qText.trim()) return;
+      if (!provider) return;
       setRagLoading(true);
       setRagError(null);
       try {
@@ -152,7 +156,7 @@ function MedicInner() {
                 }}
               >
                 <BookOpen size={10} style={{ marginRight: 4 }} />
-                RAG KNOWLEDGE BASE (#18/#19)
+                RAG KNOWLEDGE BASE
               </button>
             </div>
 
@@ -175,36 +179,11 @@ function MedicInner() {
 
             {leftTab === "rag" && (
               <div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  <button
-                    className="camera-preset"
-                    onClick={() => {
-                      setQuery("SANS optic disc edema");
-                      setCategory("");
-                      setTopK(2);
-                      void runSearch("SANS optic disc edema", "", 2);
-                    }}
-                  >
-                    #18 SANS Edema
-                  </button>
-                  <button
-                    className="camera-preset"
-                    onClick={() => {
-                      setQuery("decompression bends");
-                      setCategory("EVA/Hypoxia");
-                      setTopK(2);
-                      void runSearch("decompression bends", "EVA/Hypoxia", 2);
-                    }}
-                  >
-                    #19 Decompression Bends
-                  </button>
-                </div>
-
                 <div
                   style={{
                     display: "flex",
                     gap: 6,
-                    marginTop: 8,
+                    marginTop: 4,
                     flexWrap: "wrap",
                   }}
                 >
@@ -213,6 +192,9 @@ function MedicInner() {
                     style={{ flex: 1, minWidth: 140 }}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void runSearch(query, category, topK);
+                    }}
                     placeholder="Search NASA HRP protocols…"
                     aria-label="RAG query"
                   />
@@ -220,7 +202,11 @@ function MedicInner() {
                     className="ctx-select"
                     aria-label="Knowledge category"
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    onChange={(e) => {
+                      const nextCategory = e.target.value;
+                      setCategory(nextCategory);
+                      void runSearch(query, nextCategory, topK);
+                    }}
                   >
                     {RAG_CATEGORIES.map((c) => (
                       <option key={c || "all"} value={c}>
@@ -230,7 +216,7 @@ function MedicInner() {
                   </select>
                   <button
                     className="btn btn-primary"
-                    disabled={ragLoading || !query.trim()}
+                    disabled={ragLoading}
                     onClick={() => void runSearch(query, category, topK)}
                   >
                     <Search size={10} />
