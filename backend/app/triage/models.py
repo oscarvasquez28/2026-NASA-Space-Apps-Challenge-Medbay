@@ -34,8 +34,16 @@ class TriageAssessment(BaseModel):
 
     astronaut_id: str
     triage_level: TriageLevel
+    status: str = "nominal"
+    triage_tier: str = "TIER_1_SELF_CARE"
+    mission_readiness_score: float = 100.0
     anomaly_flags: list[str]
     recommended_actions: list[str]
     summary: str
+    high_level: str = ""
+    technical: str = ""
     ai_advisory: str | None = None
+    ml_anomaly_score: float | None = None
+    predicted_probabilities: dict[str, float] | None = None
+    telemedicine_enqueued: bool = False
     evaluated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

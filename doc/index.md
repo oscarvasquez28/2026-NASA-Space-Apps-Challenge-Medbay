@@ -14,15 +14,26 @@ Find your task domain below and jump directly to that directory's `index.md`:
 
 | If your task involves... | Read ONLY this router first | Mapped Code / Paths | Status |
 | :--- | :--- | :--- | :--- |
-| **Backend (Overall / Core Config / App Factory)** | [`doc/back/index.md`](back/index.md) | `backend/app/main.py`, `backend/app/core/` | Initialized |
-| **Backend API (REST/WS Endpoints, Health, Schemas)** | [`doc/back/api/index.md`](back/api/index.md) | `backend/app/api/` | Initialized |
-| **Backend AI (Gemini / Vertex AI Clinical Advisory)** | [`doc/back/ai/index.md`](back/ai/index.md) | `backend/app/ai/` | Initialized (Stub) |
-| **Backend Triage (Vitals Models & Autonomous Rules)** | [`doc/back/triage/index.md`](back/triage/index.md) | `backend/app/triage/` | Initialized |
-| **Frontend (Overall — Currently Uninitialized)** | [`doc/front/index.md`](front/index.md) | `frontend/` (`.gitkeep` only) | Pending Stack & UI |
-| **Frontend General (App Shell, State, API Client)** | [`doc/front/general/index.md`](front/general/index.md) | `frontend/` (future) | Pending Stack & UI |
-| **Frontend TTS (Text-to-Speech / Voice Alerts)** | [`doc/front/tts/index.md`](front/tts/index.md) | `frontend/` (future) | Pending Stack & UI |
-| **Frontend Models (Client Data, 3D/Visual Models)** | [`doc/front/models/index.md`](front/models/index.md) | `frontend/` (future) | Pending Stack & UI |
-| **Infrastructure (Docker Compose, `.env`, GCP Cloud Run)** | [`doc/infra/index.md`](infra/index.md) | `docker-compose.yml`, `.env.example`, `backend/Dockerfile` | Initialized |
+| **Backend (Overall / Core Config / App Factory)** | [`doc/back/index.md`](back/index.md) | `backend/app/main.py`, `backend/app/core/` | Active (Phase 1) |
+| **Backend API (REST/WS Endpoints, Health, Schemas)** | [`doc/back/api/index.md`](back/api/index.md) | `backend/app/api/` | Active (Phase 1) |
+| **Backend DB (SQLModel, Engine Fallback, Session)** | [`doc/back/db/index.md`](back/db/index.md) | `backend/app/db/` | Active (Phase 1) |
+| **Backend Context (Operational Setting & 5-Hazards)** | [`doc/back/context/index.md`](back/context/index.md) | `backend/app/context/` | Active (Phase 1) |
+| **Backend Telemetry (Multi-Modal Vitals & Ingestion)** | [`doc/back/telemetry/index.md`](back/telemetry/index.md) | `backend/app/telemetry/` | Active (Phase 1) |
+| **Backend Astronaut (6-Zone Anatomical Body Status)** | [`doc/back/astronaut/index.md`](back/astronaut/index.md) | `backend/app/astronaut/` | Active (Phase 1) |
+| **Backend AI (Hybrid Cloud + Edge LLM Clinical Router)** | [`doc/back/ai/index.md`](back/ai/index.md) | `backend/app/ai/` | Active (Phase 3) |
+| **Backend RAG (Vectorized Space Medicine Knowledge)** | [`doc/back/rag/index.md`](back/rag/index.md) | `backend/app/rag/` | Active (Phase 3) |
+| **Backend Voice (Hybrid Voice Synthesis Gateway)** | [`doc/back/voice/index.md`](back/voice/index.md) | `backend/app/voice/` | Active (Phase 3) |
+| **Backend Triage (3-Tier Clinical Engine & Evaluators)** | [`doc/back/triage/index.md`](back/triage/index.md) | `backend/app/triage/` | Active (Phase 2) |
+| **Backend ML (RandomForest & IsolationForest Predictor)** | [`doc/back/ml/index.md`](back/ml/index.md) | `backend/app/ml/` | Active (Phase 2) |
+| **Backend Trends (Ridge Polynomial Health Forecasting)** | [`doc/back/trends/index.md`](back/trends/index.md) | `backend/app/trends/` | Active (Phase 2) |
+| **Backend Gamification (Routine Measurement & Gachapon)** | [`doc/back/gamification/index.md`](back/gamification/index.md) | `backend/app/gamification/` | Active (Phase 4) |
+| **Backend Auth & Face ID (Operators, `face_credentials`, YuNet+SFace)** | [`doc/back/auth/index.md`](back/auth/index.md) | `backend/app/auth/`, `backend/app/api/routes/auth.py` | Active (Biometric Session) |
+| **Backend Telemedicine (Tempus Pro Store-and-Forward)** | [`doc/back/telemedicine/index.md`](back/telemedicine/index.md) | `backend/app/telemedicine/` | Active (Phase 4) |
+| **Frontend (Overall)** | [`doc/front/index.md`](front/index.md) | `frontend/` (Next.js 16 App Router lab console) | Active (Full REST Integration) |
+| **Frontend General (App Shell, Providers, Stores/Hooks, API Client)** | [`doc/front/general/index.md`](front/general/index.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` | Active (Full REST Integration) |
+| **Frontend TTS (Text-to-Speech / Voice Alerts)** | [`doc/front/tts/index.md`](front/tts/index.md) | `frontend/hooks/useSpeech.ts` | Active (`POST /api/v1/ai/tts`) |
+| **Frontend Models (Domain Types, Datasets, Part→Zone Map)** | [`doc/front/models/index.md`](front/models/index.md) | `frontend/types/health.ts`, `frontend/data/`, `frontend/components/three/` | Initialized |
+| **Infrastructure (Docker Compose, `.env`, GCP Cloud Run)** | [`doc/infra/index.md`](infra/index.md) | `docker-compose.yml`, `.env.example`, `backend/Dockerfile`, `frontend/Dockerfile`, `scripts/deploy-gcp.*` | Active (4-Container Topology) |
 
 ---
 

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2848.15 631.02">
+  <defs>
+    <style>
+      .cls-1 {
+        letter-spacing: 1.78em;
+      }
+
+      .cls-2, .cls-3 {
+        fill: #fff;
+      }
+
+      .cls-4, .cls-5, .cls-6, .cls-7 {
+        fill: #9e00df;
+      }
+
+      .cls-5 {
+        letter-spacing: -.25em;
+      }
+
+      .cls-8 {
+        letter-spacing: 1.98em;
+      }
+
+      .cls-9 {
+        letter-spacing: 1.78em;
+      }
+
+      .cls-10 {
+        letter-spacing: 1.99em;
+      }
+
+      .cls-11 {
+        letter-spacing: 1.88em;
+      }
+
+      .cls-3 {
+        letter-spacing: -.06em;
+      }
+
+      .cls-12 {
+        font-family: MonumentExtended-Ultrabold, 'Monument Extended';
+        font-size: 534.77px;
+        font-weight: 700;
+      }
+
+      .cls-6 {
+        font-family: MonumentExtended-Regular, 'Monument Extended';
+        font-size: 96.27px;
+      }
+
+      .cls-13 {
+        letter-spacing: 2em;
+      }
+
+      .cls-14 {
+        letter-spacing: 1.93em;
+      }
+
+      .cls-15 {
+        letter-spacing: 1.97em;
+      }
+
+      .cls-16 {
+        letter-spacing: 1.98em;
+      }
+
+      .cls-7 {
+        letter-spacing: 0em;
+      }
+    </style>
+  </defs>
+  <g id="STATION">
+    <g>
+      <text class="cls-12" transform="translate(0 454.55)"><tspan class="cls-4" x="0" y="0">ME</tspan><tspan class="cls-2" x="1006.43" y="0">D</tspan><tspan class="cls-3" x="1475.95" y="0">B</tspan><tspan class="cls-5" x="1924.08" y="0">A</tspan><tspan class="cls-7" x="2317.67" y="0">Y</tspan></text>
+      <text class="cls-6" transform="translate(142.11 576.72) scale(.77 1)"><tspan class="cls-14" x="0" y="0">S</tspan><tspan class="cls-1" x="278.6" y="0">T</tspan><tspan class="cls-9" x="538.81" y="0">A</tspan><tspan class="cls-8" x="809.42" y="0">T</tspan><tspan class="cls-16" x="1089.46" y="0">I</tspan><tspan class="cls-10" x="1306.06" y="0">O</tspan><tspan class="cls-13" x="1588.61" y="0">N </tspan><tspan class="cls-11" x="2112.78" y="0">C</tspan><tspan class="cls-15" x="2384.64" y="0">A</tspan><tspan class="cls-8" x="2673.35" y="0">R</tspan><tspan class="cls-13" x="2950.31" y="0">E</tspan></text>
+    </g>
+  </g>
+</svg>

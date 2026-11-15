@@ -6,5 +6,5 @@ venv/
 .env
 .env.*
 !.env.example
-tests/
+
 *.md

@@ -1,0 +1,550 @@
+"""Asynchronous database session and resilient connection engine."""
+
+import json
+import logging
+from collections.abc import AsyncGenerator
+from datetime import datetime, timedelta, timezone
+from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlmodel import SQLModel
+
+from app.auth.models import (
+    FaceCredentialRecord,
+    OperatorCheckInRecord,
+    OperatorUserRecord,
+)
+from app.core.config import get_settings
+from app.db.models import LocationContextRecord, TelemedicineAlertRecord, TelemetryRecord
+from app.gamification.models import GamificationProfileRecord
+from app.rag.models import MedicalKnowledgeChunk
+from app.rag.retriever import seed_knowledge_base
+from app.rag.seed_data import SPACE_MEDICINE_SEED_CHUNKS
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_SQLITE_URL = "sqlite+aiosqlite:///./astronaut_triage.db"
+DEFAULT_ASTRONAUT_ID = "AST-01"
+DEFAULT_LOCATION_SETTING = "Space Station [0g]"
+
+_DEFAULT_LOCATION_MULTIPLIERS: dict[str, float] = {
+    "space_radiation": 1.2,
+    "isolation_and_confinement": 1.1,
+    "distance_from_earth": 1.0,
+    "gravity_fields": 1.8,
+    "hostile_closed_environments": 1.2,
+    "composite_multiplier": 1.26,
+}
+
+# Six nominal telemetry points spaced 10 minutes apart for clean trend & body-status baselines.
+_BASELINE_TELEMETRY_SERIES: tuple[dict[str, float], ...] = (
+    {
+        "heart_rate_bpm": 71.5,
+        "systolic_bp_mmhg": 118.0,
+        "diastolic_bp_mmhg": 78.0,
+        "blood_sugar_mg_dl": 93.0,
+        "core_temp_c": 36.95,
+        "spo2_percent": 98.4,
+        "sleep_hours": 7.5,
+        "mood_score": 8.4,
+        "stress_level": 2.0,
+        "co2_partial_pressure_mmhg": 3.0,
+        "radiation_dose_msv": 4.10,
+        "visual_acuity_logmar": 0.01,
+        "bone_mineral_density_t_score": 0.10,
+        "mission_readiness_score": 98.5,
+    },
+    {
+        "heart_rate_bpm": 71.6,
+        "systolic_bp_mmhg": 118.5,
+        "diastolic_bp_mmhg": 78.5,
+        "blood_sugar_mg_dl": 93.4,
+        "core_temp_c": 36.97,
+        "spo2_percent": 98.4,
+        "sleep_hours": 7.5,
+        "mood_score": 8.4,
+        "stress_level": 2.0,
+        "co2_partial_pressure_mmhg": 3.0,
+        "radiation_dose_msv": 4.15,
+        "visual_acuity_logmar": 0.01,
+        "bone_mineral_density_t_score": 0.10,
+        "mission_readiness_score": 98.6,
+    },
+    {
+        "heart_rate_bpm": 71.7,
+        "systolic_bp_mmhg": 119.0,
+        "diastolic_bp_mmhg": 79.0,
+        "blood_sugar_mg_dl": 93.8,
+        "core_temp_c": 36.99,
+        "spo2_percent": 98.5,
+        "sleep_hours": 7.6,
+        "mood_score": 8.5,
+        "stress_level": 2.0,
+        "co2_partial_pressure_mmhg": 3.0,
+        "radiation_dose_msv": 4.20,
+        "visual_acuity_logmar": 0.01,
+        "bone_mineral_density_t_score": 0.10,
+        "mission_readiness_score": 98.7,
+    },
+    {
+        "heart_rate_bpm": 71.8,
+        "systolic_bp_mmhg": 119.0,
+        "diastolic_bp_mmhg": 79.0,
+        "blood_sugar_mg_dl": 94.2,
+        "core_temp_c": 37.01,
+        "spo2_percent": 98.5,
+        "sleep_hours": 7.6,
+        "mood_score": 8.5,
+        "stress_level": 1.9,
+        "co2_partial_pressure_mmhg": 3.0,
+        "radiation_dose_msv": 4.25,
+        "visual_acuity_logmar": 0.01,
+        "bone_mineral_density_t_score": 0.10,
+        "mission_readiness_score": 98.8,
+    },
+    {
+        "heart_rate_bpm": 71.9,
+        "systolic_bp_mmhg": 119.5,
+        "diastolic_bp_mmhg": 79.5,
+        "blood_sugar_mg_dl": 94.6,
+        "core_temp_c": 37.03,
+        "spo2_percent": 98.6,
+        "sleep_hours": 7.5,
+        "mood_score": 8.5,
+        "stress_level": 2.0,
+        "co2_partial_pressure_mmhg": 3.0,
+        "radiation_dose_msv": 4.30,
+        "visual_acuity_logmar": 0.01,
+        "bone_mineral_density_t_score": 0.10,
+        "mission_readiness_score": 98.9,
+    },
+    {
+        "heart_rate_bpm": 72.0,
+        "systolic_bp_mmhg": 120.0,
+        "diastolic_bp_mmhg": 80.0,
+        "blood_sugar_mg_dl": 95.0,
+        "core_temp_c": 37.05,
+        "spo2_percent": 98.6,
+        "sleep_hours": 7.5,
+        "mood_score": 8.5,
+        "stress_level": 2.0,
+        "co2_partial_pressure_mmhg": 3.0,
+        "radiation_dose_msv": 4.35,
+        "visual_acuity_logmar": 0.01,
+        "bone_mineral_density_t_score": 0.10,
+        "mission_readiness_score": 99.0,
+    },
+)
+
+_engine: AsyncEngine | None = None
+_sessionmaker: async_sessionmaker[AsyncSession] | None = None
+
+
+def _normalize_database_url(db_url: str) -> str:
+    """Ensure PostgreSQL URLs use the asyncpg driver and asyncpg-compatible SSL params."""
+    normalized = db_url.strip()
+    if normalized.startswith("postgres://"):
+        normalized = "postgresql+asyncpg://" + normalized[len("postgres://") :]
+    elif normalized.startswith("postgresql://"):
+        normalized = "postgresql+asyncpg://" + normalized[len("postgresql://") :]
+
+    if normalized.startswith("postgresql+asyncpg://") and "sslmode=" in normalized:
+        parts = urlsplit(normalized)
+        params = parse_qsl(parts.query, keep_blank_values=True)
+        has_ssl = any(k == "ssl" for k, _ in params)
+        rewritten = []
+        for k, v in params:
+            if k == "sslmode":
+                if not has_ssl:
+                    rewritten.append(("ssl", v))
+                    has_ssl = True
+            else:
+                rewritten.append((k, v))
+        normalized = urlunsplit(
+            (parts.scheme, parts.netloc, parts.path, urlencode(rewritten), parts.fragment)
+        )
+    return normalized
+
+
+def _create_engine_for_url(db_url: str) -> AsyncEngine:
+    """Create an AsyncEngine tailored to the database dialect."""
+    normalized_url = _normalize_database_url(db_url)
+    if normalized_url.startswith("sqlite"):
+        return create_async_engine(
+            normalized_url,
+            echo=False,
+            future=True,
+            connect_args={"check_same_thread": False},
+        )
+    return create_async_engine(
+        normalized_url,
+        echo=False,
+        future=True,
+        pool_pre_ping=True,
+    )
+
+
+def get_engine() -> AsyncEngine:
+    """Retrieve or initialize the active AsyncEngine."""
+    global _engine, _sessionmaker
+    if _engine is None:
+        settings = get_settings()
+        target_url = settings.database_url or DEFAULT_SQLITE_URL
+        _engine = _create_engine_for_url(target_url)
+        _sessionmaker = async_sessionmaker(
+            bind=_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autocommit=False,
+            autoflush=False,
+        )
+    return _engine
+
+
+def set_engine(engine: AsyncEngine) -> None:
+    """Explicitly override the active database engine (used by test fixtures)."""
+    global _engine, _sessionmaker
+    _engine = engine
+    _sessionmaker = async_sessionmaker(
+        bind=_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+
+
+def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    """Retrieve or initialize the active async session maker."""
+    global _sessionmaker
+    if _sessionmaker is None:
+        get_engine()
+    assert _sessionmaker is not None
+    return _sessionmaker
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency yielding an async database session."""
+    session_factory = get_sessionmaker()
+    async with session_factory() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+
+
+def _build_default_location_context() -> LocationContextRecord:
+    """Construct the baseline Space Station [0g] operational context record."""
+    return LocationContextRecord(
+        location_setting=DEFAULT_LOCATION_SETTING,
+        temperature_c=21.5,
+        pressure_kpa=101.3,
+        lighting_lux=450.0,
+        noise_dba=55.0,
+        microbial_cfu_m3=200.0,
+        co2_mmhg=3.0,
+        earth_comm_latency_sec=0.05,
+        offline_fallback_active=False,
+        hazard_multipliers_json=json.dumps(_DEFAULT_LOCATION_MULTIPLIERS),
+        updated_at=datetime.now(timezone.utc),
+    )
+
+
+async def seed_baseline_telemetry(
+    session: AsyncSession,
+    astronaut_id: str = DEFAULT_ASTRONAUT_ID,
+) -> int:
+    """Insert 6 nominal historical telemetry points spaced 10 minutes apart over the past hour."""
+    now = datetime.now(timezone.utc)
+    total_points = len(_BASELINE_TELEMETRY_SERIES)
+    for idx, sample in enumerate(_BASELINE_TELEMETRY_SERIES):
+        offset_minutes = 10 * (total_points - 1 - idx)
+        record = TelemetryRecord(
+            astronaut_id=astronaut_id,
+            timestamp=now - timedelta(minutes=offset_minutes),
+            location_setting=DEFAULT_LOCATION_SETTING,
+            heart_rate_bpm=sample["heart_rate_bpm"],
+            systolic_bp_mmhg=sample["systolic_bp_mmhg"],
+            diastolic_bp_mmhg=sample["diastolic_bp_mmhg"],
+            blood_sugar_mg_dl=sample["blood_sugar_mg_dl"],
+            core_temp_c=sample["core_temp_c"],
+            spo2_percent=sample["spo2_percent"],
+            sleep_hours=sample["sleep_hours"],
+            mood_score=sample["mood_score"],
+            stress_level=sample["stress_level"],
+            suit_pressure_kpa=None,
+            co2_partial_pressure_mmhg=sample["co2_partial_pressure_mmhg"],
+            radiation_dose_msv=sample["radiation_dose_msv"],
+            visual_acuity_logmar=sample["visual_acuity_logmar"],
+            bone_mineral_density_t_score=sample["bone_mineral_density_t_score"],
+            symptoms_json="[]",
+            target_anatomical_zone=None,
+            status="nominal",
+            triage_tier="TIER_1_SELF_CARE",
+            mission_readiness_score=sample["mission_readiness_score"],
+        )
+        session.add(record)
+    return total_points
+
+
+def _build_default_gamification_profile(
+    astronaut_id: str = DEFAULT_ASTRONAUT_ID,
+) -> GamificationProfileRecord:
+    """Construct the baseline gamification profile matching get_or_create_profile defaults."""
+    return GamificationProfileRecord(
+        astronaut_id=astronaut_id,
+        readiness_streak_days=1,
+        total_checkups_completed=0,
+        gachapon_tokens=1,
+        unlocked_skins_json=json.dumps(["skin_standard_suit"]),
+        equipped_skin_id="skin_standard_suit",
+        completed_tasks_today_json=json.dumps([]),
+        last_checkup_at=None,
+        updated_at=datetime.now(timezone.utc),
+    )
+
+
+async def _seed_defaults_if_missing(session: AsyncSession) -> dict[str, int]:
+    """Seed baseline context, telemetry, gamification profile, and knowledge base when absent."""
+    seeded_contexts = 0
+    existing_ctx = (await session.execute(select(LocationContextRecord.id).limit(1))).scalar_one_or_none()
+    if existing_ctx is None:
+        session.add(_build_default_location_context())
+        seeded_contexts = 1
+        logger.info("Default baseline location context seeded: %s", DEFAULT_LOCATION_SETTING)
+
+    seeded_telemetry = 0
+    existing_tel = (await session.execute(select(TelemetryRecord.id).limit(1))).scalar_one_or_none()
+    if existing_tel is None:
+        seeded_telemetry = await seed_baseline_telemetry(session, DEFAULT_ASTRONAUT_ID)
+        logger.info("Default baseline telemetry seeded (%d records for %s).", seeded_telemetry, DEFAULT_ASTRONAUT_ID)
+
+    seeded_profiles = 0
+    existing_prof = (
+        await session.execute(
+            select(GamificationProfileRecord.id)
+            .where(GamificationProfileRecord.astronaut_id == DEFAULT_ASTRONAUT_ID)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if existing_prof is None:
+        session.add(_build_default_gamification_profile(DEFAULT_ASTRONAUT_ID))
+        seeded_profiles = 1
+
+    await session.commit()
+
+    knowledge_chunks = await seed_knowledge_base(session)
+    return {
+        "location_contexts": seeded_contexts,
+        "telemetry_records": seeded_telemetry,
+        "gamification_profiles": seeded_profiles,
+        "telemedicine_alerts": 0,
+        "medical_knowledge_chunks": knowledge_chunks,
+    }
+
+
+async def _restore_from_snapshot_schema(session: AsyncSession) -> dict[str, int] | None:
+    """Copy the frozen `snapshot` schema tables back into `public`.
+
+    Returns per-table restored row counts, or None when no `snapshot` schema
+    exists (or the dialect is not PostgreSQL) so callers can fall back to the
+    seeder baseline.
+    """
+    if session.bind.dialect.name != "postgresql":
+        return None
+
+    schema_exists = (
+        await session.execute(
+            text("select 1 from information_schema.schemata where schema_name = 'snapshot'")
+        )
+    ).scalar_one_or_none()
+    if schema_exists is None:
+        return None
+
+    public_tables = [
+        row[0]
+        for row in (
+            await session.execute(
+                text(
+                    "select table_name from information_schema.tables "
+                    "where table_schema = 'public' and table_type = 'BASE TABLE'"
+                )
+            )
+        ).all()
+    ]
+    if public_tables:
+        joined = ", ".join(f'public."{name}"' for name in public_tables)
+        await session.execute(text(f"TRUNCATE TABLE {joined} CASCADE"))
+
+    restored: dict[str, int] = {}
+    snapshot_tables = [
+        row[0]
+        for row in (
+            await session.execute(
+                text(
+                    "select table_name from information_schema.tables "
+                    "where table_schema = 'snapshot' and table_type = 'BASE TABLE' "
+                    "and table_name <> '_meta'"
+                )
+            )
+        ).all()
+    ]
+    for table in snapshot_tables:
+        if table not in public_tables:
+            continue
+        cols = [
+            row[0]
+            for row in (
+                await session.execute(
+                    text(
+                        "select column_name from information_schema.columns "
+                        "where table_schema = 'snapshot' and table_name = :tbl "
+                        "and column_name in ("
+                        "  select column_name from information_schema.columns "
+                        "  where table_schema = 'public' and table_name = :tbl"
+                        ") order by ordinal_position"
+                    ),
+                    {"tbl": table},
+                )
+            ).all()
+        ]
+        if not cols:
+            continue
+        col_list = ", ".join(f'"{c}"' for c in cols)
+        await session.execute(
+            text(
+                f'INSERT INTO public."{table}" ({col_list}) '
+                f'SELECT {col_list} FROM snapshot."{table}"'
+            )
+        )
+        restored[table] = int(
+            (await session.execute(text(f'SELECT count(*) FROM public."{table}"'))).scalar_one()
+        )
+
+    serial_cols = (
+        await session.execute(
+            text(
+                "select table_name, column_name, "
+                "pg_get_serial_sequence('public.' || table_name, column_name) as seq "
+                "from information_schema.columns "
+                "where table_schema = 'public' "
+                "and pg_get_serial_sequence('public.' || table_name, column_name) is not null"
+            )
+        )
+    ).all()
+    for tbl, col, seq in serial_cols:
+        await session.execute(
+            text(f'SELECT setval(:seq, COALESCE((SELECT MAX("{col}") FROM public."{tbl}"), 1))'),
+            {"seq": seq},
+        )
+
+    await session.commit()
+    return restored
+
+
+async def restore_database_snapshot(session: AsyncSession) -> dict[str, Any]:
+    """Restore `public` to the frozen `snapshot` schema point, else the seeder baseline."""
+    try:
+        restored_tables = await _restore_from_snapshot_schema(session)
+    except Exception:
+        await session.rollback()
+        restored_tables = None
+        logger.warning(
+            "Snapshot-schema restore failed; falling back to seeder baseline.",
+            exc_info=True,
+        )
+
+    if restored_tables is not None:
+        first_operator = (
+            await session.execute(select(OperatorUserRecord.astronaut_id).limit(1))
+        ).scalar_one_or_none()
+        first_location = (
+            await session.execute(select(LocationContextRecord.location_setting).limit(1))
+        ).scalar_one_or_none()
+        logger.info("Database restored from snapshot schema: %s", restored_tables)
+        return {
+            "restored": True,
+            "restored_at": datetime.now(timezone.utc),
+            "default_astronaut_id": first_operator or DEFAULT_ASTRONAUT_ID,
+            "default_location_setting": first_location or DEFAULT_LOCATION_SETTING,
+            "seeded_counts": restored_tables,
+            "source": "snapshot",
+        }
+
+    await session.execute(delete(FaceCredentialRecord))
+    await session.execute(delete(OperatorCheckInRecord))
+    await session.execute(delete(OperatorUserRecord))
+    await session.execute(delete(TelemedicineAlertRecord))
+    await session.execute(delete(TelemetryRecord))
+    await session.execute(delete(GamificationProfileRecord))
+    await session.execute(delete(LocationContextRecord))
+
+    chunk_count_res = await session.execute(select(func.count()).select_from(MedicalKnowledgeChunk))
+    chunk_count = int(chunk_count_res.scalar_one() or 0)
+    if chunk_count != len(SPACE_MEDICINE_SEED_CHUNKS):
+        await session.execute(delete(MedicalKnowledgeChunk))
+
+    await session.commit()
+
+    seeded_counts = await _seed_defaults_if_missing(session)
+    logger.info("Database snapshot restored to baseline seeder state: %s", seeded_counts)
+    return {
+        "restored": True,
+        "restored_at": datetime.now(timezone.utc),
+        "default_astronaut_id": DEFAULT_ASTRONAUT_ID,
+        "default_location_setting": DEFAULT_LOCATION_SETTING,
+        "seeded_counts": seeded_counts,
+        "source": "seeder",
+    }
+
+
+async def init_db() -> None:
+    """Initialize database tables, extensions, and default baseline records."""
+    global _engine, _sessionmaker
+
+    # Test initial connectivity, fallback to SQLite if PostgreSQL is unreachable
+    try:
+        engine = get_engine()
+        async with engine.begin() as conn:
+            if engine.dialect.name == "postgresql":
+                try:
+                    await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                    logger.info("pgvector extension verified or created.")
+                except Exception as ext_err:
+                    logger.warning(
+                        "Unable to create vector extension (continuing without vector support): %s",
+                        ext_err,
+                    )
+            await conn.run_sync(SQLModel.metadata.create_all)
+    except Exception as conn_err:
+        logger.warning(
+            "Primary database connection failed (%s). Falling back to resilient SQLite: %s",
+            conn_err,
+            DEFAULT_SQLITE_URL,
+        )
+        _engine = _create_engine_for_url(DEFAULT_SQLITE_URL)
+        _sessionmaker = async_sessionmaker(
+            bind=_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autocommit=False,
+            autoflush=False,
+        )
+        async with _engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+
+    session_factory = get_sessionmaker()
+    async with session_factory() as session:
+        counts = await _seed_defaults_if_missing(session)
+        logger.info(
+            "Space medicine knowledge base initialized (%d chunks present).",
+            counts["medical_knowledge_chunks"],
+        )

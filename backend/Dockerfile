@@ -16,9 +16,21 @@ RUN groupadd --system appgroup && useradd --system --gid appgroup appuser
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-COPY app ./app
+# Pre-bake OpenCV YuNet + SFace ONNX models for 100% offline face recognition
+RUN mkdir -p /app/models/face && python -c "\
+import urllib.request, os; \
+models = { \
+  'face_detection_yunet_2023mar.onnx': 'https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx', \
+  'face_recognition_sface_2021dec.onnx': 'https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx', \
+}; \
+[urllib.request.urlretrieve(u, os.path.join('/app/models/face', f)) for f, u in models.items()]"
 
-RUN chown -R appuser:appgroup /app
+COPY pyproject.toml ./
+COPY app ./app
+COPY tests ./tests
+
+# Ensure upload and model directories are accessible to non-root user
+RUN mkdir -p /tmp/uploads /app/models/face && chown -R appuser:appgroup /app /tmp/uploads
 USER appuser
 
 EXPOSE 8080

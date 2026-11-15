@@ -1,16 +1,116 @@
-# Frontend General Architecture (Pending Initialization)
+# Frontend General Architecture
 
-## Current State
+> Reference blueprints: [`../medbay-design.md`](../medbay-design.md) (**active MEDBAY skin** — tokens, screen map, mascot, weekly bonus) and legacy [`mechavis-design-reference.md`](../mechavis-design-reference.md). The UI is a MEDBAY reskin: same routes/providers/contracts, shadcn/ui + supplied SVG set.
 
-- `frontend/` is intentionally empty except for `frontend/.gitkeep`.
-- Do **not** scaffold a framework inside `frontend/` until the team selects the frontend tech stack and final UI design.
+## Stack
 
-## Integration & Container Contract (Ready for Future Implementation)
+- **Next.js 16 (App Router) + React 19 + TypeScript** in [`frontend/`](../../../frontend/).
+- **Tailwind CSS 4** + design tokens in [`app/globals.css`](../../../frontend/app/globals.css) — dark workbench theme (`#101113` bg, hairline borders, blue-lavender accent, semantic status tokens `--status-nominal/caution/urgent/critical` — never hardcode status hex in components).
+- **Three.js + @react-three/fiber + drei + camera-controls** — procedural xEMU-style EVA suit + sculpted procedural anatomy (no external assets, rig in `data/suit-rig.ts`), loaded via `dynamic({ ssr: false })` with an accessible SVG fallback.
+- **Zustand** — `app-store` (persisted prefs) + `viewer-store` (per-viewport store via React context).
+- **Motion** (boot/boot overlay, gachapon), **Recharts** (trends), **Radix Dialog** (modal/palette/drawer), **lucide-react**, **@fontsource** Inter + IBM Plex Mono.
+- **Vitest** — provider contract tests in `frontend/tests/`.
 
-When the frontend stack is chosen:
-1. **Separate Container:** Create `frontend/Dockerfile` serving the app on `0.0.0.0:${PORT:-8080}` (Cloud Run compatible) and switch the `frontend` service in [`docker-compose.yml`](../../../docker-compose.yml) from the placeholder image to `build: ./frontend`.
-2. **Backend Communication:**
-   - Browser requests target `PUBLIC_API_URL` (local default: `http://localhost:8080`).
-   - Any server-side proxy/SSR requests inside Docker Compose target `INTERNAL_BACKEND_URL` (`http://backend:8080`).
-   - Backend API contracts are documented in [`doc/back/api/endpoints.md`](../../back/api/endpoints.md).
-3. **Documentation Sync:** Immediately update this file, [`doc/front/index.md`](../index.md), and [`doc/infra/docker-and-env.md`](../../infra/docker-and-env.md) when initializing `frontend/`.
+## Layout
+
+```text
+frontend/
+├── app/
+│   ├── layout.tsx                # fonts + AppShell
+│   ├── page.tsx                  # Home hero (live 3D astronaut + location/crew spec strip + checklist)
+│   ├── globals.css               # design tokens + component classes
+│   ├── api/runtime-config/       # GET runtime env bridge (apiUrl, dataProvider, ids)
+│   ├── crew/page.tsx             # Roster explorer (shared-canvas 3D previews)
+│   ├── crew/[id]/page.tsx        # Anatomical explorer — live 6-zone status + self-exams + countermeasures
+│   ├── telemetry/page.tsx        # Trends dashboard (8 backend indicators + 95% CI forecast + overlays;
+│   │                             # model panel keeps overflow-hidden so the R3F canvas can't cover the chart)
+│   ├── log/page.tsx              # Multi-modal telemetry ingest + triage + Tempus Pro queue/flush
+│   ├── medic/page.tsx            # Clinical AI copilot + RAG Space Medicine Knowledge Explorer
+│   ├── compare/page.tsx          # "X IS MORE AT RISK" comparison (MEDBAY §9)
+│   ├── settings/page.tsx         # Quality / motion / view-mode prefs + baseline reset
+│   ├── register/page.tsx         # Operator enrollment (face photo required)
+│   ├── checkin/page.tsx          # Screen 0 — "ANYONE THERE?" → "HELLO YOU!" camera
+│   │                             #   ID → "WEEKLY CHECK IN BONUS" (7-day spin)
+│   └── users/page.tsx            # Operator management (medic-only)
+├── components/
+│   ├── ui/                       # primitives (Eyebrow, StatusChip…), Modal (Radix),
+│   │                             #   FaceCapture (capture/scan camera + upload fallback)
+│   ├── layout/                   # AppShell + MedbayHeader (logo, health LED,
+│   │                             #   evidence camera, location tile, view toggle,
+│   │                             #   LLM status, operator), CommandPalette,
+│   │                             #   BootSequence, AuthGate (session gate)
+│   ├── three/                    # astronaut-model, canvas-scene (+ location
+│   │                             #   environments: station module / Orion cabin /
+│   │                             #   Mars surface), model-viewport, procedural,
+│   │                             #   suit/organ/skin-geometry, viewer-toolbar,
+│   │                             #   tooltips, fallback-figure, location-tile minis
+│   ├── medbay/                   # VisualAI (mascot + shared chat panel),
+│   │                             #   LocationTile (minimodel + mismatch stroke),
+│   │                             #   EvidenceDialog (camera → diagnostic image)
+│   ├── mascot/                   # OrbSkin (default Siri-wave orb) + prize skins
+│   │                             #   TvBotSkin (COMMON) / WaveCatSkin (RARE) /
+│   │                             #   RubberHoseSkin (MYTHIC, original character)
+│   ├── subject/                  # SubjectView (shared astronaut view for /
+│   │                             #   and /crew/[id]), ProfileHeader, InfoBlocks,
+│   │                             #   VitalTiles/VitalGraph/VitalDetail,
+│   │                             #   SubjectDashboard
+│   ├── icons/medbay.tsx          # lucide-react wrappers + MEDBAY wordmark <img>s (static assets in public/brand/, generated by scripts/gen-logo-assets.py)
+│   └── widgets/                  # ZoneInspector, ChatPanel (+ AUTO TTS & viseme sync,
+│                                 #   markdown-rendered assistant replies), TelemetryLogger,
+│                                 #   TrendsChart (with 95% CI), ChecklistWidget (+ 12-Skin Suit Locker),
+│                                 #   PrizeWheel (weekly mascot-skin drum — COMMON/RARE/MYTHIC)
+├── types/health.ts               # Domain types + Phase 1–4 backend DTO mirrors
+├── data/                         # Curated metadata, fallbacks & backend-aligned palettes
+├── services/                     # health-provider (contract), mock-provider,
+│                                 #   rest-provider (partial=false), provider (factory, default rest),
+│                                 #   sim-progress (mock-only demo health arc driven by
+│                                 #   data/sim-progress.json; consumed via SIM_TICK_MS polling
+│                                 #   in useBodyStatus)
+├── hooks/                        # useProvider/useCrew/useBodyStatus/useTelemetry/
+│                                 #   useLocationContext/useHealthStatus/
+│                                 #   useAICompanion/useGamification/useSpeech (TTS + visemes
+│                                 #   + amplitude analyser), useCheckIn (session/streak/weekly
+│                                 #   spin cadence), useIdleLock, useLocationTheme,
+│                                 #   useMascotEmotion, useLlmStatus, useHealthState
+├── stores/                       # app-store (persist + synced location + subject health),
+│                                 #   viewer-store, companion-store (shared AI conversation),
+│                                 #   header-store (page headlines in MedbayHeader),
+│                                 #   user-store (persisted + backend-synced operators, key
+│                                 #   `astro-lab:user`; extras map keeps mascot/avatar/profile)
+├── lib/                          # api.ts (typed FastAPI client), config.ts, sample-media.ts,
+│                                 #   medbay-vitals.ts (tile defs/verdicts),
+│                                 #   medbay-copy.ts (info-box/FAQ/notification copy), utils.ts (cn)
+└── tests/                        # provider.test.ts (contract suite) +
+                                  #   user-store.test.ts (session logic)
+
+## Key architectural mandates
+
+1. **Headless separation** — all fetching/state lives in `hooks/` + `stores/`; components are presentational.
+2. **HealthDataProvider contract** (`services/health-provider.ts`) — `rest` (default, `RestHealthDataProvider` with `partial: false`, connected to all FastAPI Phase 1–4 endpoints) vs `mock` (offline deterministic dataset + Vitest parity). Swap via `NEXT_PUBLIC_DATA_PROVIDER` / `DATA_PROVIDER`. The mock provider additionally layers the demo health arc (`services/sim-progress.ts` + `data/sim-progress.json`, 5 s interpolated keyframes, looping) onto `getCrew`/`getCrewMember`/`getTelemetrySeries`; `useBodyStatus` silently re-polls every `SIM_TICK_MS` only under `provider.kind === "mock"` so vitals, zone statuses, health state and trend graphs visibly deteriorate/recover in demos (vital statuses reuse the deterministic triage thresholds, and the vitals strip reads `SIM FEED`). Under `rest`, `useBodyStatus.toggleSim` runs the same dataset as an on-demand scenario player: `simIngestPayload` samples interpolated values per `SIM_TICK_MS` and POSTs real `/telemetry/ingest` rows (real DB inserts for demos), dispatches `SIM_TICK_EVENT` (listened by `useTelemetry` for live graph refetch) and re-polls body-status silently; the vitals strip exposes the `▶ RUN SIM`/`■ STOP · N INS` control only in REST mode.
+3. **Dual view** — `app-store.viewMode` (`high_level` | `technical`) dynamically renders backend dual-narrative fields (`high_level` vs `technical`) across context, zones, trends, telemetry, RAG docs, AI chat, gamification, telemedicine, and baseline reset.
+4. **Location context & ECLSS** — `app-store.locationId` + `liveLocationProfile` synchronize with `GET/POST /api/v1/context/location` (5-Hazards multipliers, gravity, comm latency, offline fallback, ECLSS parameters) via `useLocationContext`.
+5. **Single selection/focus pipeline** — model clicks, zone lists, chat references, and AI `focus` actions all call `viewer-store.focus(zone)` (one store per `ViewerProvider`). `BodyZone.position` is model-local; `focus()` converts it to world space via `MODEL_GROUP_OFFSET` (`types/health.ts`).
+6. **Anatomical drill-down & live Vital merge** — `RestHealthDataProvider` merges backend `AstronautBodyStatusResponse` zone statuses, `self_exam_steps`, `recommended_countermeasures`, and `linked_vitals` onto the shared nominal `baseZones()` template in `data/crew.ts`, keeping organ heartbeat/breath/peristalsis animations accurate while reflecting real DB values. The template speaks the same `linked_vitals` key vocabulary (`heart_rate_bpm`, `spo2_percent`, `core_temp_c`, `systolic_bp_mmhg`, `blood_sugar_mg_dl`, `radiation_dose_msv`, `bone_mineral_density_t_score`, `visual_acuity_logmar`, `co2_partial_pressure_mmhg`, `sleep_hours`, `suit_pressure_kpa`) so the VITAL SIGNS tiles (`lib/medbay-vitals.ts`) resolve real readings under both providers — spec vitals with no backend feed (height/weight, HRV, ECG) are not rendered.
+7. **Viewport-height contract** — workspace pages bound themselves to the space `.main-area` leaves (`flex: 1 1 0%` + `min-height: 0` + `overflow: hidden` on the page root).
+8. **Biometric session gate & idle lock** — `AuthGate` (inside `AppShell`, using `useIdleLock` + `hydrateAppStore()` + `hydrateUserStore()`) redirects: no operator profiles → `/register`; active operator without a check-in for today or `sessionLocked === true` (after configurable `idleTimeoutMs`, default 3 minutes) → `/checkin`. When `DATA_PROVIDER=rest`, profiles, `face_credentials` embeddings (OpenCV YuNet + SFace), check-ins, and weekly spin consumption synchronizes with FastAPI `/api/v1/auth/*` and `/api/v1/gamification/*` (falling back locally in `mock` mode). `PrizeWheel` awards **Visual AI Model skins** (one per 7-consecutive-day check-in run — `earnedSpinsFor` mirrors backend `earned_spins`); mascot unlocks live in `user-store.extras` only and are never sent as backend suit skin ids. First enrolled profile is enforced `medic`; `/users` renders for medics only. Recognized faces auto-login and unlock immediately; unrecognized faces prompt `/register` (pre-filled with the captured frame) or manual login. `ChecklistWidget` binds to the active operator's `astronautId`.
+
+## Backend Communication Contract
+
+- Browser calls backend directly; CORS handled backend-side.
+- Base URL resolution: `NEXT_PUBLIC_API_URL` (build) → `GET /api/runtime-config` (`PUBLIC_API_URL`, Docker-friendly) → `http://localhost:8080`.
+- Full endpoint surface consumed by `RestHealthDataProvider` (`frontend/lib/api.ts`):
+  - `GET /health` → `checkHealth()`
+  - `GET /api/v1/context/location`, `POST /api/v1/context/location` → `getActiveLocation()`, `getLocationProfile()`, `updateLocationProfile()`
+  - `POST /api/v1/triage/evaluate` → `submitTelemetry()`
+  - `POST /api/v1/telemetry/ingest` (JSON & `multipart/form-data` image upload) → `ingestTelemetry()`, `submitLog()`
+  - `GET /api/v1/astronaut/body-status` → `getCrewMember()`, `getCrew()`
+  - `GET /api/v1/trends/{indicator}` (8 backend indicators + 95% CI bounds) → `getTelemetrySeries()`
+  - `GET /api/v1/ai/knowledge` → `searchKnowledge()`
+  - `POST /api/v1/ai/chat` → `ask()`
+  - `POST /api/v1/ai/tts` → `synthesizeSpeech()` (via `useSpeech`)
+  - `GET /api/v1/gamification/status`, `POST /api/v1/gamification/checkup-complete` → `getGamification()`, `completeCheckup()`, `pullGachapon()`, `PrizeWheel` skin reward persistence
+  - `GET /api/v1/auth/session-state`, `POST /api/v1/auth/register`, `POST /api/v1/auth/identify`, `POST /api/v1/auth/checkin`, `POST /api/v1/auth/claim-wheel-spin`, `DELETE /api/v1/auth/users/{user_id}` → operator enrollment, OpenCV face recognition login, idle lock, and spin claims
+  - `GET /api/v1/telemedicine/sync-queue`, `POST /api/v1/telemedicine/flush` → `getTelemedicineQueue()`, `flushTelemedicineQueue()`
+  - `PUT /api/v1/tests/dbsnapshot` → `restoreDatabaseSnapshot()`
+- `INTERNAL_BACKEND_URL=http://backend:8080` reserved for future server-side proxying.
+- Crew roster: **only enrolled operators are mission crew** — the visual-ID check-in is what places a person aboard, so `getCrew()`/`getCrewMember()` resolve `user-store` operators by `astronautId` (`AST-U01…`) and `data/crew.ts::crewMemberFromOperator` builds each member on the shared nominal `baseZones()` template; `/api/v1/astronaut/body-status` (auto-seeded for any astronaut ID) merges live status on top, with the nominal baseline kept when the backend is unreachable. Enrollment `facePhoto` renders as the roster-card avatar. (Note: two legacy mock-only trend metrics `exertion` and `fatigue` still delegate to `MockHealthDataProvider`.)

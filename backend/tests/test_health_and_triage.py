@@ -28,6 +28,10 @@ def test_triage_nominal() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["triage_level"] == "NOMINAL"
+    assert payload["status"] == "nominal"
+    assert payload["triage_tier"] == "TIER_1_SELF_CARE"
+    assert len(payload["high_level"]) > 10
+    assert len(payload["technical"]) > 10
     assert payload["anomaly_flags"] == []
 
 

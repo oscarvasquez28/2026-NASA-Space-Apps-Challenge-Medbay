@@ -1,11 +1,11 @@
-# Frontend Text-to-Speech (TTS) Overview (Pending Implementation)
+# Frontend Text-to-Speech (TTS) Overview
 
-## Purpose
+## Status — active backend voice + viseme integration
 
-The TTS module will provide hands-free spoken alerts and triage action readouts for astronauts and flight surgeons during high-workload or EVA scenarios where visual screen attention is constrained.
+[`frontend/hooks/useSpeech.ts`](../../../frontend/hooks/useSpeech.ts) implements the live `SpeechAdapter` connected to [`POST /api/v1/ai/tts`](../../back/voice/tts-gateway.md) through `HealthDataProvider.synthesizeSpeech()`. In `rest` mode it receives ElevenLabs MP3 or offline local RIFF WAV base64 audio along with timed phoneme `viseme_cues` (`A`, `E`, `I`, `O`, `U`, `M`, `rest`); `mock` mode generates an offline local RIFF WAV stub and viseme timeline for isolated testing.
 
-## Planned Integration Notes
+## Playback & Viseme Architecture
 
-- Trigger prioritized audio announcements on `URGENT` and `CRITICAL` [`TriageLevel`](../../back/triage/rules-and-models.md) transitions.
-- Support an offline-capable speech synthesis fallback (e.g., Web Speech API or local audio assets) when spacecraft communication links are degraded.
-- Update this directory's docs immediately once `frontend/` TTS modules are implemented.
+- **Primary audio playback:** Creates an `HTMLAudioElement` from `data:<mime_type>;base64,<audio_base64>` and calls `play()`, falling back cleanly to browser `window.speechSynthesis` using `browser_speech_hint` if audio autoplay is blocked.
+- **Preloaded `/api/v1/ai/chat` voice payloads:** When `AUTO TTS` (`include_voice: true`) is enabled in [`ChatPanel.tsx`](../../../frontend/components/widgets/ChatPanel.tsx), `useSpeech.speak(..., { preloadedResponse })` plays the attached `voice_payload` immediately without an extra HTTP roundtrip.
+- **Viseme & Transport HUD:** `useSpeech()` exposes `activeViseme`, `speaking`, `loading`, `lastResponse`, and `mode` (`"local" | "advisory"`). [`ChatPanel.tsx`](../../../frontend/components/widgets/ChatPanel.tsx) provides a live `FORCE OFFLINE` / `AUTO TTS` toggle strip, real-time `activeViseme` status indicator, and a per-message `SPEAK` / `Stop` control calling `POST /api/v1/ai/tts`.

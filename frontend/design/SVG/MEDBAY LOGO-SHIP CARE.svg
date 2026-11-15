@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2832.12 627.47">
+  <defs>
+    <style>
+      .cls-1, .cls-2 {
+        fill: #fff;
+      }
+
+      .cls-3 {
+        letter-spacing: -.25em;
+      }
+
+      .cls-3, .cls-4, .cls-5, .cls-6 {
+        fill: #4b00ff;
+      }
+
+      .cls-7 {
+        letter-spacing: 2em;
+      }
+
+      .cls-8 {
+        letter-spacing: 1.97em;
+      }
+
+      .cls-9 {
+        letter-spacing: 1.99em;
+      }
+
+      .cls-10 {
+        letter-spacing: 1.88em;
+      }
+
+      .cls-4 {
+        font-family: MonumentExtended-Regular, 'Monument Extended';
+        font-size: 95.73px;
+      }
+
+      .cls-2 {
+        letter-spacing: -.06em;
+      }
+
+      .cls-5 {
+        letter-spacing: 0em;
+      }
+
+      .cls-11 {
+        letter-spacing: 2em;
+      }
+
+      .cls-12 {
+        letter-spacing: 1.99em;
+      }
+
+      .cls-13 {
+        letter-spacing: 1.98em;
+      }
+
+      .cls-14 {
+        font-family: MonumentExtended-Ultrabold, 'Monument Extended';
+        font-size: 531.76px;
+        font-weight: 700;
+      }
+    </style>
+  </defs>
+  <g id="SHIP">
+    <g>
+      <text class="cls-14" transform="translate(0 451.99)"><tspan class="cls-6" x="0" y="0">ME</tspan><tspan class="cls-1" x="1000.76" y="0">D</tspan><tspan class="cls-2" x="1467.64" y="0">B</tspan><tspan class="cls-3" x="1913.25" y="0">A</tspan><tspan class="cls-5" x="2304.62" y="0">Y</tspan></text>
+      <text class="cls-4" transform="translate(448.72 573.47) scale(.77 1)"><tspan class="cls-12" x="0" y="0">S</tspan><tspan class="cls-9" x="282.29" y="0">HI</tspan><tspan class="cls-11" x="786.77" y="0">P </tspan><tspan class="cls-10" x="1298.99" y="0">C</tspan><tspan class="cls-8" x="1569.32" y="0">A</tspan><tspan class="cls-13" x="1856.41" y="0">R</tspan><tspan class="cls-7" x="2131.81" y="0">E</tspan></text>
+    </g>
+  </g>
+</svg>

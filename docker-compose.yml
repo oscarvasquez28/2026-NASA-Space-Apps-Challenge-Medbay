@@ -2,14 +2,56 @@
 # Astronaut Health Monitoring & Autonomous Triage System
 # Local Docker Compose Orchestration (GCP Cloud Run Compatible Service Split)
 # ==============================================================================
-# Two isolated container services:
-#   1. backend  -> Python/FastAPI service built from ./backend/Dockerfile (port 8080)
-#   2. frontend -> Placeholder container until ./frontend stack & Dockerfile are defined
+# Four isolated container services + one one-shot guard:
+#   1. db             -> PostgreSQL 16 with pgvector extension (port 5432)
+#   2. ollama         -> Offline Local Medical LLM / Embeddings runtime (port 11434)
+#   3. backend        -> Python/FastAPI service built from ./backend/Dockerfile (port 8080)
+#   4. db-autorestore -> One-shot restore-point guard, profile `restore` only
+#                         (runs scripts/db-autorestore.sql; never auto-runs on `up`)
+#   5. frontend       -> Next.js standalone console built from ./frontend/Dockerfile
 # ==============================================================================
 
 name: ${PROJECT_NAME:-astronaut-triage-system}
 
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: astronaut-triage-db
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-astronaut}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spaceapps2026}
+      POSTGRES_DB: ${POSTGRES_DB:-astronaut_triage}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-astronaut} -d ${POSTGRES_DB:-astronaut_triage}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - triage-net
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: astronaut-triage-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - triage-net
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -29,10 +71,31 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       TRIAGE_MODE: ${TRIAGE_MODE:-deterministic}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://astronaut:spaceapps2026@db:5432/astronaut_triage}
+      POSTGRES_USER: ${POSTGRES_USER:-astronaut}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spaceapps2026}
+      POSTGRES_DB: ${POSTGRES_DB:-astronaut_triage}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_PORT: ${OLLAMA_PORT:-11434}
+      OLLAMA_LLM_MODEL: ${OLLAMA_LLM_MODEL:-medgemma}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      WHEEL_CADENCE_DAYS: ${WHEEL_CADENCE_DAYS:-7}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME:-}
+      UPLOAD_DIR: ${UPLOAD_DIR:-/tmp/uploads}
+      FACE_MODEL_DIR: ${FACE_MODEL_DIR:-/app/models/face}
+      FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.363}
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
       GCP_REGION: ${GCP_REGION:-us-central1}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       VERTEX_AI_MODEL: ${VERTEX_AI_MODEL:-gemini-2.5-flash}
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
     healthcheck:
       test:
         [
@@ -49,29 +112,59 @@ services:
       - triage-net
     restart: unless-stopped
 
-  frontend:
-    # NOTE: ./frontend/ is intentionally empty (only .gitkeep) until the
-    # frontend tech stack and UI design are finalized. Once ./frontend/Dockerfile
-    # is created, replace `image:` below with:
-    #   build:
-    #     context: ./frontend
-    #     dockerfile: Dockerfile
-    # and map "${FRONTEND_PORT:-3000}:8080" to match GCP Cloud Run conventions.
-    image: ${FRONTEND_IMAGE:-nginx:1.27-alpine}
-    container_name: astronaut-triage-frontend
-    ports:
-      - "${FRONTEND_PORT:-3000}:80"
+  db-autorestore:
+    # One-shot manual guard (profile `restore`, so it never runs on plain
+    # `docker compose up`): restores `public` from the frozen `snapshot` schema
+    # ONLY when public.operator_users is empty. Run explicitly via
+    # `docker compose --profile restore up db-autorestore` after an external
+    # wipe. In-app restores go through PUT /api/v1/tests/dbsnapshot.
+    image: postgres:17-alpine
+    container_name: astronaut-triage-db-autorestore
     env_file:
       - path: .env
         required: false
     environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://astronaut:spaceapps2026@db:5432/astronaut_triage}
+    volumes:
+      - ./scripts/db-autorestore.sql:/autorestore.sql:ro
+    entrypoint: /bin/sh
+    command: -c "psql \"$$(echo \"$$DATABASE_URL\" | sed 's/postgresql+asyncpg:/postgresql:/; s/ssl=require/sslmode=require/')\" -v ON_ERROR_STOP=1 -f /autorestore.sql"
+    profiles: ["restore"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - triage-net
+    restart: "no"
+
+  frontend:
+    # Next.js standalone console (App Router). The browser resolves the backend
+    # URL via the /api/runtime-config route handler (PUBLIC_API_URL) so the
+    # image does not need rebuilding when the backend address changes.
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: ${FRONTEND_IMAGE:-astronaut-triage-frontend:local}
+    container_name: astronaut-triage-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:8080"
+    env_file:
+      - path: .env
+        required: false
+      - path: ./frontend/.env
+        required: false
+    environment:
+      PORT: "8080"
+      HOSTNAME: "0.0.0.0"
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
       INTERNAL_BACKEND_URL: http://backend:8080
+      DATA_PROVIDER: ${DATA_PROVIDER:-rest}
+      WHEEL_CADENCE_DAYS: ${WHEEL_CADENCE_DAYS:-7}
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -79,6 +172,10 @@ services:
     networks:
       - triage-net
     restart: unless-stopped
+
+volumes:
+  pgdata:
+  ollama_data:
 
 networks:
   triage-net:

@@ -6,7 +6,7 @@
 - **`VitalSigns`:**
   - Required: `astronaut_id` (`str`), `heart_rate_bpm` (`0..300`), `spo2_percent` (`0..100`), `core_temp_c` (`25.0..45.0`).
   - Optional/Defaulted: `timestamp` (UTC now), `systolic_bp_mmhg` (default `120.0`), `suit_pressure_kpa` (`0..150`), `radiation_msv_hr` (`>= 0`), `symptoms` (`list[str]`).
-- **`TriageAssessment`:** `astronaut_id`, `triage_level`, `anomaly_flags`, `recommended_actions`, `summary`, `ai_advisory`, `evaluated_at`.
+- **`TriageAssessment`:** `astronaut_id`, `triage_level`, `status` (`nominal` | `caution` | `critical`), `triage_tier` (`TIER_1_SELF_CARE` | `TIER_2_CMO_REVIEW` | `TIER_3_GROUND_SURGEON`), `mission_readiness_score`, `anomaly_flags`, `recommended_actions`, `summary`, `high_level`, `technical`, `ai_advisory`, `evaluated_at`.
 
 ## Deterministic Baseline Engine (`backend/app/triage/engine.py`)
 

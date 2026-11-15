@@ -1,0 +1,410 @@
+{
+  "info": {
+    "_postman_id": "c1f7a29e-64d8-4b77-9821-d007c08a98bf",
+    "name": "Astronaut Health Monitoring & Autonomous Triage API - Phase 1",
+    "description": "Verification suite covering Phase 1 Core Infrastructure, Operational Context, Multi-Modal Telemetry, and 6-Zone Anatomical Status.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Health Liveness Probe",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Health status is ok\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"ok\");",
+              "    pm.expect(json.service).to.eql(\"backend\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "2. Context - Get Active Location",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Contains location setting, 5-hazards, status, and dual-view fields\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json).to.have.property(\"location_setting\");",
+              "    pm.expect(json).to.have.property(\"gravity_g\");",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.hazard_multipliers).to.have.property(\"composite_multiplier\");",
+              "    pm.expect(json.hazard_multipliers.composite_multiplier).to.be.above(0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/context/location",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "context", "location"]
+        }
+      }
+    },
+    {
+      "name": "3. Context - Update to Mars [3/8g] (High Latency & Offline Fallback)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Mars setting activates offline fallback, status token, and dual-view fields\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.location_setting).to.eql(\"Mars [3/8g]\");",
+              "    pm.expect(json.gravity_g).to.eql(0.376);",
+              "    pm.expect(json.offline_fallback_active).to.be.true;",
+              "    pm.expect(json.earth_comm_latency_sec).to.eql(720.0);",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.include(\"Mars\");",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.include(\"5-Hazards\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"location_setting\": \"Mars [3/8g]\",\n  \"temperature_c\": 19.5,\n  \"pressure_kpa\": 95.0,\n  \"co2_mmhg\": 3.8\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/context/location",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "context", "location"]
+        }
+      }
+    },
+    {
+      "name": "4. Context - Restore Space Station [0g] Nominal Baseline",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Space Station setting restores nominal link and dual-view fields\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.location_setting).to.eql(\"Space Station [0g]\");",
+              "    pm.expect(json.offline_fallback_active).to.be.false;",
+              "    pm.expect(json.status).to.eql(\"nominal\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"location_setting\": \"Space Station [0g]\",\n  \"temperature_c\": 21.5,\n  \"pressure_kpa\": 101.3,\n  \"co2_mmhg\": 3.0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/context/location",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "context", "location"]
+        }
+      }
+    },
+    {
+      "name": "5. Telemetry - Ingest Nominal Vitals (JSON)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Nominal vitals classified as Tier 1 with status, high_level, and technical\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"nominal\");",
+              "    pm.expect(json.triage_tier).to.eql(\"TIER_1_SELF_CARE\");",
+              "    pm.expect(json.mission_readiness_score).to.be.at.least(90);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.recommended_actions).to.be.an(\"array\").and.not.empty;",
+              "    pm.environment.set(\"lastTelemetryId\", json.id);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 74.0,\n  \"systolic_bp_mmhg\": 118.0,\n  \"diastolic_bp_mmhg\": 78.0,\n  \"blood_sugar_mg_dl\": 92.0,\n  \"core_temp_c\": 37.0,\n  \"spo2_percent\": 98.8,\n  \"sleep_hours\": 7.5,\n  \"mood_score\": 8.5,\n  \"stress_level\": 1.5,\n  \"symptoms\": []\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "telemetry", "ingest"]
+        }
+      }
+    },
+    {
+      "name": "6. Telemetry - Ingest Critical Hypoxia & EVA Stress (JSON)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Severe hypoxemia classified as Critical Tier 3 with dual-view text\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"critical\");",
+              "    pm.expect(json.triage_tier).to.eql(\"TIER_3_GROUND_SURGEON\");",
+              "    pm.expect(json.anomaly_flags.length).to.be.above(0);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.include(\"CRITICAL\");",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.include(\"TIER_3_GROUND_SURGEON\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 138.0,\n  \"systolic_bp_mmhg\": 155.0,\n  \"diastolic_bp_mmhg\": 98.0,\n  \"blood_sugar_mg_dl\": 110.0,\n  \"core_temp_c\": 37.8,\n  \"spo2_percent\": 84.5,\n  \"suit_pressure_kpa\": 22.5,\n  \"co2_partial_pressure_mmhg\": 7.2,\n  \"symptoms\": [\"dyspnea\", \"tunnel vision\", \"dizziness\"],\n  \"target_anatomical_zone\": \"cardiovascular_chest\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "telemetry", "ingest"]
+        }
+      }
+    },
+    {
+      "name": "7. Telemetry - Ingest Skin Rash Diagnostic Check (Multipart)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Multipart telemetry asserts caution status, dual-view text, and skin zone\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.target_anatomical_zone).to.eql(\"skin\");",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}",
+              "type": "text"
+            },
+            {
+              "key": "heart_rate_bpm",
+              "value": "82.0",
+              "type": "text"
+            },
+            {
+              "key": "spo2_percent",
+              "value": "97.0",
+              "type": "text"
+            },
+            {
+              "key": "core_temp_c",
+              "value": "37.2",
+              "type": "text"
+            },
+            {
+              "key": "target_anatomical_zone",
+              "value": "skin",
+              "type": "text"
+            },
+            {
+              "key": "symptoms",
+              "value": "[\"erythema\", \"pruritic rash\"]",
+              "type": "text"
+            },
+            {
+              "key": "diagnostic_image",
+              "description": "Optional: select any PNG/JPEG file in Postman to verify Pillow upload preprocessing.",
+              "type": "file",
+              "src": []
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/telemetry/ingest",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "telemetry", "ingest"]
+        }
+      }
+    },
+    {
+      "name": "8. Astronaut - Get 6-Zone Anatomical Body Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Contains top-level and 6-zone status tokens, high_level, and technical views\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json).to.have.property(\"zones\");",
+              "    var zones = [\"head_eyes\", \"cardiovascular_chest\", \"spine_skeletal\", \"musculoskeletal_limbs\", \"gut_microbiome\", \"skin\"];",
+              "    zones.forEach(function (z) {",
+              "        pm.expect(json.zones).to.have.property(z);",
+              "        pm.expect(json.zones[z].status).to.be.oneOf([\"nominal\", \"caution\", \"critical\"]);",
+              "        pm.expect(json.zones[z].ui_token).to.match(/^status-(nominal|caution|critical)$/);",
+              "        pm.expect(json.zones[z].high_level).to.be.a(\"string\").and.not.empty;",
+              "        pm.expect(json.zones[z].technical).to.be.a(\"string\").and.not.empty;",
+              "        pm.expect(json.zones[z].self_exam_steps).to.be.an(\"array\");",
+              "        pm.expect(json.zones[z].recommended_countermeasures).to.be.an(\"array\");",
+              "    });",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/astronaut/body-status?astronaut_id={{astronautId}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "astronaut", "body-status"],
+          "query": [
+            {
+              "key": "astronaut_id",
+              "value": "{{astronautId}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "9. Triage - Baseline Evaluate (Backward Compatibility)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Baseline triage returns legacy and standardized status/high_level/technical fields\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.triage_level).to.eql(\"NOMINAL\");",
+              "    pm.expect(json.status).to.eql(\"nominal\");",
+              "    pm.expect(json.high_level).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.technical).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(json.anomaly_flags).to.be.an(\"array\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"astronaut_id\": \"{{astronautId}}\",\n  \"heart_rate_bpm\": 72.0,\n  \"spo2_percent\": 98.5,\n  \"core_temp_c\": 37.0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/triage/evaluate",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "triage", "evaluate"]
+        }
+      }
+    }
+  ]
+}

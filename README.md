@@ -14,7 +14,7 @@ A two-service containerized system (`backend` and `frontend`) designed for local
 ├── docker-compose.yml      # Local multi-container orchestration (backend + frontend)
 ├── .env.example            # Root environment template (local & GCP)
 ├── backend/                # Python FastAPI backend (API, AI, Autonomous Triage)
-├── frontend/               # Empty (.gitkeep only) — awaiting frontend stack & UI design
+├── frontend/               # Next.js 16 (App Router) + React + TypeScript monitoring console
 └── doc/                    # Hierarchical context-saving documentation & index.md routers
 ```
 
@@ -29,10 +29,13 @@ A two-service containerized system (`backend` and `frontend`) designed for local
    docker compose config
    docker compose up --build
    ```
-3. Verify the backend health endpoint:
+3. Verify the services:
+   - Frontend Console: `http://localhost:3000`
    - Backend Health: `http://localhost:8080/health`
    - Backend OpenAPI Docs: `http://localhost:8080/docs`
-   - Frontend Placeholder: `http://localhost:3000`
+
+   To run the frontend without Docker: `cd frontend && npm install && npm run dev`
+   (see [`frontend/README.md`](frontend/README.md) for env vars).
 
 ## Documentation
 

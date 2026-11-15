@@ -1,11 +1,22 @@
 """FastAPI application entry point."""
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.api.routes.health import router as health_router
 from app.core.config import get_settings
+from app.db.session import init_db
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
+    """Execute startup and shutdown lifecycle tasks."""
+    await init_db()
+    yield
 
 
 def create_app() -> FastAPI:
@@ -17,6 +28,7 @@ def create_app() -> FastAPI:
         version=settings.version,
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     application.add_middleware(
