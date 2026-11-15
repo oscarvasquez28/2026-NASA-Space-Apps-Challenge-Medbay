@@ -2,14 +2,54 @@
 # Astronaut Health Monitoring & Autonomous Triage System
 # Local Docker Compose Orchestration (GCP Cloud Run Compatible Service Split)
 # ==============================================================================
-# Two isolated container services:
-#   1. backend  -> Python/FastAPI service built from ./backend/Dockerfile (port 8080)
-#   2. frontend -> Placeholder container until ./frontend stack & Dockerfile are defined
+# Four isolated container services:
+#   1. db       -> PostgreSQL 16 with pgvector extension (port 5432)
+#   2. ollama   -> Offline Local Medical LLM / Embeddings runtime (port 11434)
+#   3. backend  -> Python/FastAPI service built from ./backend/Dockerfile (port 8080)
+#   4. frontend -> Placeholder container until ./frontend stack & Dockerfile are defined
 # ==============================================================================
 
 name: ${PROJECT_NAME:-astronaut-triage-system}
 
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: astronaut-triage-db
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-astronaut}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spaceapps2026}
+      POSTGRES_DB: ${POSTGRES_DB:-astronaut_triage}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-astronaut} -d ${POSTGRES_DB:-astronaut_triage}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - triage-net
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: astronaut-triage-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - triage-net
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -29,10 +69,28 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       TRIAGE_MODE: ${TRIAGE_MODE:-deterministic}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://astronaut:spaceapps2026@db:5432/astronaut_triage}
+      POSTGRES_USER: ${POSTGRES_USER:-astronaut}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spaceapps2026}
+      POSTGRES_DB: ${POSTGRES_DB:-astronaut_triage}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_PORT: ${OLLAMA_PORT:-11434}
+      OLLAMA_LLM_MODEL: ${OLLAMA_LLM_MODEL:-medgemma}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME:-}
+      UPLOAD_DIR: ${UPLOAD_DIR:-/tmp/uploads}
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
       GCP_REGION: ${GCP_REGION:-us-central1}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       VERTEX_AI_MODEL: ${VERTEX_AI_MODEL:-gemini-2.5-flash}
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
     healthcheck:
       test:
         [
@@ -79,6 +137,10 @@ services:
     networks:
       - triage-net
     restart: unless-stopped
+
+volumes:
+  pgdata:
+  ollama_data:
 
 networks:
   triage-net:

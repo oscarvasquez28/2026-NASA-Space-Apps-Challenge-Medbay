@@ -16,9 +16,12 @@ RUN groupadd --system appgroup && useradd --system --gid appgroup appuser
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
+COPY pyproject.toml ./
 COPY app ./app
+COPY tests ./tests
 
-RUN chown -R appuser:appgroup /app
+# Ensure upload directory exists for multi-modal ingestion
+RUN mkdir -p /tmp/uploads && chown -R appuser:appgroup /app /tmp/uploads
 USER appuser
 
 EXPOSE 8080
