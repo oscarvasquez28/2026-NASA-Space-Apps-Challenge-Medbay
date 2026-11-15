@@ -87,9 +87,30 @@
 - **Response (`200 OK`):** `GamificationStatusResponse` containing `status`, `high_level`, `technical`, `astronaut_id`, `readiness_streak_days`, `total_checkups_completed`, `gachapon_tokens`, `compliance_rate_percent`, `equipped_skin`, `routine_tasks`, `unlocked_skins_count`, `total_skins_count`, and `catalog`.
 
 ### `POST /api/v1/gamification/checkup-complete` (`backend/app/api/routes/gamification.py`)
-- **Purpose:** Logs routine health task completion, advances readiness streak (+1), awards Gachapon tokens (+1), and executes an optional weighted companion skin roll.
-- **Request Body:** `CheckupCompleteRequest` (`astronaut_id`, `completed_tasks`, `perform_gachapon_roll`, `equip_skin_id`, `deterministic_seed`).
+- **Purpose:** Logs routine health task completion, advances readiness streak (+1), awards Gachapon tokens (+1), unlocks explicit Prize Drum rewards (`unlock_skin_id`), and executes an optional weighted companion skin roll.
+- **Request Body:** `CheckupCompleteRequest` (`astronaut_id`, `completed_tasks`, `perform_gachapon_roll`, `equip_skin_id`, `unlock_skin_id`, `deterministic_seed`).
 - **Response (`200 OK`):** `CheckupCompleteResponse` with `status`, `high_level`, `technical`, `readiness_streak_days`, `total_checkups_completed`, `gachapon_tokens`, `tokens_awarded`, `roll_performed`, `roll_result`, `equipped_skin`, `completed_tasks_today`, and `compliance_rate_percent`.
+
+### `GET /api/v1/auth/session-state` (`backend/app/api/routes/auth.py`)
+- **Purpose:** Returns all enrolled `operator_users`, `operator_checkins`, and active `face_credentials` count for frontend boot hydration.
+
+### `POST /api/v1/auth/register` (`backend/app/api/routes/auth.py`)
+- **Purpose:** Enrolls a new operator (enforcing first user = `medic`), extracts a 128-d face embedding into `face_credentials`, and seeds `GamificationProfileRecord`.
+
+### `POST /api/v1/auth/identify` (`backend/app/api/routes/auth.py`)
+- **Purpose:** Runs local OpenCV YuNet + SFace face detection and cosine similarity matching against `face_credentials`. Returns `status` (`matched` | `unknown_face` | `no_face`), `matched_user`, and `confidence`.
+
+### `POST /api/v1/auth/checkin` (`backend/app/api/routes/auth.py`)
+- **Purpose:** Idempotently records a daily operator check-in, computes consecutive streak and `WHEEL_EVERY_N = 5` spin eligibility, and syncs `GamificationProfileRecord`.
+
+### `POST /api/v1/auth/claim-wheel-spin` (`backend/app/api/routes/auth.py`)
+- **Purpose:** Consumes a Prize Drum spin (`wheel_spins_claimed`) and persists any unlocked companion skin into `GamificationProfileRecord`.
+
+### `GET /api/v1/auth/users/{user_id}/faces` & `POST /api/v1/auth/users/{user_id}/faces` (`backend/app/api/routes/auth.py`)
+- **Purpose:** Lists saved face credential metadata mapped to `user_id` or enrolls additional face samples.
+
+### `DELETE /api/v1/auth/users/{user_id}` (`backend/app/api/routes/auth.py`)
+- **Purpose:** Deletes an operator, their `face_credentials`, and their `operator_checkins`.
 
 ### `GET /api/v1/telemedicine/sync-queue` (`backend/app/api/routes/telemedicine.py`)
 - **Purpose:** Inspects store-and-forward telemedicine alerts, bundled with Artemis Standard Measures telemetry and Ridge regression trend forecasting summaries.
@@ -104,7 +125,7 @@
 - **Response (`200 OK`):** `TelemedicineFlushResponse` with `status`, `high_level`, `technical`, `flushed_count`, `remaining_pending_count`, `ground_station`, `transmitted_at`, and `flushed_packets`.
 
 ### `PUT /api/v1/tests/dbsnapshot` (`backend/app/api/routes/tests.py`)
-- **Purpose:** Restores runtime database tables (`telemedicine_alerts`, `telemetry_records`, `gamification_profiles`, `location_contexts`, and verified `medical_knowledge_chunks`) back to the clean baseline seeder snapshot for repeatable test runs and live judge demonstrations. (`PATCH` and `POST` are also accepted on the same path as hidden convenience aliases.)
+- **Purpose:** Restores runtime database tables (`operator_users`, `face_credentials`, `operator_checkins`, `telemedicine_alerts`, `telemetry_records`, `gamification_profiles`, `location_contexts`, and verified `medical_knowledge_chunks`) back to the clean baseline seeder snapshot for repeatable test runs and live judge demonstrations. (`PATCH` and `POST` are also accepted on the same path as hidden convenience aliases.)
 - **Request Body:** None required.
 - **Response (`200 OK`):** `DatabaseSnapshotRestoreResponse` containing `status` (`"nominal"`), `high_level`, `technical`, `restored` (`true`), `restored_at`, `default_astronaut_id` (`"AST-01"`), `default_location_setting` (`"Space Station [0g]"`), and `seeded_counts`.
 

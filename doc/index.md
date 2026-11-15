@@ -27,6 +27,7 @@ Find your task domain below and jump directly to that directory's `index.md`:
 | **Backend ML (RandomForest & IsolationForest Predictor)** | [`doc/back/ml/index.md`](back/ml/index.md) | `backend/app/ml/` | Active (Phase 2) |
 | **Backend Trends (Ridge Polynomial Health Forecasting)** | [`doc/back/trends/index.md`](back/trends/index.md) | `backend/app/trends/` | Active (Phase 2) |
 | **Backend Gamification (Routine Measurement & Gachapon)** | [`doc/back/gamification/index.md`](back/gamification/index.md) | `backend/app/gamification/` | Active (Phase 4) |
+| **Backend Auth & Face ID (Operators, `face_credentials`, YuNet+SFace)** | [`doc/back/auth/index.md`](back/auth/index.md) | `backend/app/auth/`, `backend/app/api/routes/auth.py` | Active (Biometric Session) |
 | **Backend Telemedicine (Tempus Pro Store-and-Forward)** | [`doc/back/telemedicine/index.md`](back/telemedicine/index.md) | `backend/app/telemedicine/` | Active (Phase 4) |
 | **Frontend (Overall)** | [`doc/front/index.md`](front/index.md) | `frontend/` (Next.js 16 App Router lab console) | Active (Full REST Integration) |
 | **Frontend General (App Shell, Providers, Stores/Hooks, API Client)** | [`doc/front/general/index.md`](front/general/index.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` | Active (29-API Wired) |

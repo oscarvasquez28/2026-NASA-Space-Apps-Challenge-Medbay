@@ -9,6 +9,7 @@
 | App factory, CORS, `Settings`, dependencies, tests | [`architecture.md`](architecture.md) | `backend/app/main.py`, `backend/app/core/config.py`, `backend/tests/` |
 | HTTP/WebSocket routes, request/response schemas | [`api/index.md`](api/index.md) | `backend/app/api/`, `doc/back/api/postman/` |
 | Database session, engine fallback, SQLModel records | [`db/index.md`](db/index.md) | `backend/app/db/` |
+| Operator auth, `face_credentials`, local YuNet+SFace face recognition | [`auth/index.md`](auth/index.md) | `backend/app/auth/`, `backend/app/api/routes/auth.py` |
 | Operational context & NASA HRP 5-Hazards modeling | [`context/index.md`](context/index.md) | `backend/app/context/` |
 | Multi-modal telemetry ingestion & diagnostic imaging | [`telemetry/index.md`](telemetry/index.md) | `backend/app/telemetry/` |
 | Astronaut anatomical 6-zone body status aggregator | [`astronaut/index.md`](astronaut/index.md) | `backend/app/astronaut/` |

@@ -50,9 +50,9 @@ frontend/
 ├── hooks/                        # useProvider/useCrew/useBodyStatus/useTelemetry/
 │                                 #   useLocationContext/useHealthStatus/
 │                                 #   useAICompanion/useGamification/useSpeech (TTS + visemes)
-│                                 #   useCheckIn (local session/streak/spin cadence)
+│                                 #   useCheckIn (session/streak/spin cadence), useIdleLock (inactivity lock)
 ├── stores/                       # app-store (persist + synced location context), viewer-store,
-│                                 #   user-store (persisted local operator profiles, key `astro-lab:user`)
+│                                 #   user-store (persisted + backend-synced operators, key `astro-lab:user`)
 ├── lib/                          # api.ts (15 typed FastAPI endpoints), config.ts, sample-media.ts
 └── tests/                        # provider.test.ts (contract suite) +
                                   #   user-store.test.ts (session logic)
@@ -66,7 +66,7 @@ frontend/
 5. **Single selection/focus pipeline** — model clicks, zone lists, chat references, and AI `focus` actions all call `viewer-store.focus(zone)` (one store per `ViewerProvider`). `BodyZone.position` is model-local; `focus()` converts it to world space via `MODEL_GROUP_OFFSET` (`types/health.ts`).
 6. **Anatomical drill-down & live Vital merge** — `RestHealthDataProvider` merges backend `AstronautBodyStatusResponse` zone statuses, `self_exam_steps`, `recommended_countermeasures`, and `linked_vitals` onto structural `ORGAN_WATCH` baselines in `data/crew.ts`, keeping organ heartbeat/breath/peristalsis animations accurate while reflecting real DB values.
 7. **Viewport-height contract** — workspace pages bound themselves to the space `.main-area` leaves (`flex: 1 1 0%` + `min-height: 0` + `overflow: hidden` on the page root).
-8. **Local session gate** — `AuthGate` (inside `AppShell`, after `hydrateAppStore()` + `hydrateUserStore()`) redirects: no operator profiles → `/register`; active operator without a check-in for today → `/checkin`. Operator profiles (`LocalUser`: name, callsign, `medic`|`user` role, ~360px JPEG face-photo data URL, auto `AST-U0n` astronautId), `CheckInRecord`s and claimed drum spins persist **only** in `localStorage` under `astro-lab:user` — explicitly labelled simulated, not backend auth. The first profile is forced `medic`; `/users` renders for medics only. The 5-check-in Prize Drum (`stores/user-store.WHEEL_EVERY_N`, weighted via `data/gamification.DRUM_WEIGHTS`, segments labelled only COMMON/RARE/LEGENDARY) awards a catalog skin through `app-store.rewardSkin`. `FaceCapture` needs a secure context (localhost/HTTPS); its scan mode is animation-only — real face recognition is a future adapter.
+8. **Biometric session gate & idle lock** — `AuthGate` (inside `AppShell`, using `useIdleLock` + `hydrateAppStore()` + `hydrateUserStore()`) redirects: no operator profiles → `/register`; active operator without a check-in for today or `sessionLocked === true` (after configurable `idleTimeoutMs`, default 3 minutes) → `/checkin`. When `DATA_PROVIDER=rest`, profiles, `face_credentials` embeddings (OpenCV YuNet + SFace), check-ins, and `PrizeWheel` skin rewards synchronize with FastAPI `/api/v1/auth/*` and `/api/v1/gamification/*` (falling back locally in `mock` mode). First enrolled profile is enforced `medic`; `/users` renders for medics only. Recognized faces auto-login and unlock immediately; unrecognized faces prompt `/register` (pre-filled with the captured frame) or manual login. `ChecklistWidget` binds to the active operator's `astronautId`.
 
 ## Backend Communication Contract
 
@@ -82,7 +82,8 @@ frontend/
   - `GET /api/v1/ai/knowledge` → `searchKnowledge()`
   - `POST /api/v1/ai/chat` → `ask()`
   - `POST /api/v1/ai/tts` → `synthesizeSpeech()` (via `useSpeech`)
-  - `GET /api/v1/gamification/status`, `POST /api/v1/gamification/checkup-complete` → `getGamification()`, `completeCheckup()`, `pullGachapon()`
+  - `GET /api/v1/gamification/status`, `POST /api/v1/gamification/checkup-complete` → `getGamification()`, `completeCheckup()`, `pullGachapon()`, `PrizeWheel` skin reward persistence
+  - `GET /api/v1/auth/session-state`, `POST /api/v1/auth/register`, `POST /api/v1/auth/identify`, `POST /api/v1/auth/checkin`, `POST /api/v1/auth/claim-wheel-spin`, `DELETE /api/v1/auth/users/{user_id}` → operator enrollment, OpenCV face recognition login, idle lock, and spin claims
   - `GET /api/v1/telemedicine/sync-queue`, `POST /api/v1/telemedicine/flush` → `getTelemedicineQueue()`, `flushTelemedicineQueue()`
   - `PUT /api/v1/tests/dbsnapshot` → `restoreDatabaseSnapshot()`
 - `INTERNAL_BACKEND_URL=http://backend:8080` reserved for future server-side proxying.

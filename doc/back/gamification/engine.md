@@ -42,6 +42,7 @@ The companion skin catalog contains 12 unique items distributed across 4 tiers:
   - `completed_tasks: list[str]`
   - `perform_gachapon_roll: bool = True`
   - `equip_skin_id: Optional[str] = None`
+  - `unlock_skin_id: Optional[str] = None` *(persists skins won via the frontend check-in `PrizeWheel`)*
   - `deterministic_seed: Optional[int] = None`
 - **Behavior:**
   - Validates that `equip_skin_id` (if passed) is already unlocked; otherwise raises HTTP 400.

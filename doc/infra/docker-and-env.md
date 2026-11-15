@@ -57,6 +57,8 @@ The repository defines **four separate container services** in [`docker-compose.
 | `ELEVENLABS_VOICE_ID` | `""` | Backend | Target voice persona ID |
 | `UPLOAD_DIR` | `/tmp/uploads` | Backend | Local storage path for diagnostic images |
 | `GCS_BUCKET_NAME` | `""` | Backend / GCP | Optional GCS bucket for diagnostic images |
+| `FACE_MODEL_DIR` | `/app/models/face` | Backend | Directory containing pre-baked OpenCV YuNet & SFace ONNX models |
+| `FACE_MATCH_THRESHOLD` | `0.363` | Backend | Minimum cosine similarity required to match a face in `face_credentials` |
 | `FRONTEND_PORT` | `3000` | Compose | Host port mapped to frontend container `:8080` |
 | `PUBLIC_API_URL` | `http://localhost:8080` | Frontend | Public backend URL served to browsers via `GET /api/runtime-config` |
 | `ASTRONAUT_IDS` | `AST-01,AST-02,AST-03` | Frontend | Runtime astronaut selector list (no roster endpoint exists) |
