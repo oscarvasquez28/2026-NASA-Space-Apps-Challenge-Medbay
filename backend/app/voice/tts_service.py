@@ -152,8 +152,8 @@ async def synthesize_voice(
             from elevenlabs.client import AsyncElevenLabs
 
             client = AsyncElevenLabs(api_key=app_settings.elevenlabs_api_key)
-            voice_id = request.voice_id or app_settings.elevenlabs_voice_id or "21m00Tcm4TlvDq8ikWAM"
-            audio_stream = await client.text_to_speech.convert(
+            voice_id = request.voice_id or app_settings.elevenlabs_voice_id or "JBFqnCBsd6RMkjVDRZzb"
+            audio_stream = client.text_to_speech.convert(
                 voice_id=voice_id,
                 text=request.text,
                 model_id="eleven_multilingual_v2",
