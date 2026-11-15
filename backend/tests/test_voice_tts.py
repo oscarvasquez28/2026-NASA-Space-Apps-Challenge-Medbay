@@ -113,3 +113,41 @@ def test_voice_tts_streaming_websocket() -> None:
                 pytest.fail(f"Unexpected frame type: {frame.get('type')}")
 
         assert audio_chunks_received >= 1
+
+
+@pytest.mark.asyncio
+async def test_voice_tts_elevenlabs_online_async_generator(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify ElevenLabs online path consumes async_generator stream without awaiting convert()."""
+    from types import SimpleNamespace
+    import elevenlabs.client
+
+    async def fake_convert(**kwargs: object):
+        assert kwargs["voice_id"] == "custom-voice-id"
+        yield b"ID3-chunk-1-"
+        yield b"chunk-2"
+
+    class FakeAsyncElevenLabs:
+        def __init__(self, api_key: str) -> None:
+            assert api_key == "test-elevenlabs-key"
+            self.text_to_speech = SimpleNamespace(convert=fake_convert)
+
+    monkeypatch.setattr(elevenlabs.client, "AsyncElevenLabs", FakeAsyncElevenLabs)
+
+    from app.core.config import Settings
+    from app.voice.models import TTSRequest
+    from app.voice.tts_service import synthesize_voice
+
+    settings = Settings(
+        elevenlabs_api_key="test-elevenlabs-key",
+        elevenlabs_voice_id="custom-voice-id",
+    )
+    response = await synthesize_voice(
+        request=TTSRequest(text="Oxygen nominal.", force_offline=False),
+        settings=settings,
+    )
+
+    assert response.provider_used == "elevenlabs"
+    assert response.offline_mode is False
+    assert response.mime_type == "audio/mpeg"
+    assert base64.b64decode(response.audio_base64) == b"ID3-chunk-1-chunk-2"
+    assert len(response.viseme_cues) == 2
