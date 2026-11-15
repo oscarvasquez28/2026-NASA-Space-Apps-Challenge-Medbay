@@ -32,3 +32,6 @@ build/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local DB snapshots (may contain face biometrics — never commit)
+snapshots/
