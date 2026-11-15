@@ -51,7 +51,7 @@ Eight core NASA HRP and CSA clinical protocol chunks are pre-seeded automaticall
 
 ## Resilient Embedder (`embedder.py`)
 
-- **Primary Provider:** Ollama (`nomic-embed-text`) through `http://ollama:11434/api/embeddings` with a 1.5s timeout.
+- **Primary Provider:** Ollama (`nomic-embed-text`) through `${OLLAMA_BASE_URL}/api/embeddings` when `OLLAMA_BASE_URL` is non-empty, bounded by `asyncio.wait_for(..., timeout=1.5)` so unreachable Docker hostnames (like `ollama` on Cloud Run) cannot stall startup past HTTP client socket timeouts.
 - **Deterministic Offline Fallback:** When Ollama is unreachable or model weights are missing, generates an L2-normalized 64-dimensional float vector:
   - Dimensions 0–47: Polynomial rolling hash of character trigrams.
   - Dimensions 48–63: 16 clinical keyword buckets weighted by domain token matches.

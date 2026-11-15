@@ -29,8 +29,8 @@ The AI Clinical Router (`backend/app/ai/router_service.py`) implements a resilie
 |    - Exception / Timeout -> Cascade to Tier 2              |
 |                                                             |
 |  [Tier 2: Edge LLM]                                         |
-|    - Eligible: latency > 5s or Tier 1 failed                |
-|    - Model: medgemma via Ollama client (4.0s timeout)       |
+|    - Eligible: latency > 5s or Tier 1 failed, & OLLAMA_BASE_URL|
+|    - Model: medgemma via Ollama client (4.0s wait_for timeout)|
 |    - Exception / Model Not Found -> Cascade to Tier 3       |
 |                                                             |
 |  [Tier 3: Offline RAG Clinical Synthesizer]                 |

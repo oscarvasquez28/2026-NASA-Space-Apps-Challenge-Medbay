@@ -33,7 +33,7 @@ Find your task domain below and jump directly to that directory's `index.md`:
 | **Frontend General (App Shell, Providers, Stores/Hooks, API Client)** | [`doc/front/general/index.md`](front/general/index.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` | Active (Full REST Integration) |
 | **Frontend TTS (Text-to-Speech / Voice Alerts)** | [`doc/front/tts/index.md`](front/tts/index.md) | `frontend/hooks/useSpeech.ts` | Active (`POST /api/v1/ai/tts`) |
 | **Frontend Models (Domain Types, Datasets, Part→Zone Map)** | [`doc/front/models/index.md`](front/models/index.md) | `frontend/types/health.ts`, `frontend/data/`, `frontend/components/three/` | Initialized |
-| **Infrastructure (Docker Compose, `.env`, GCP Cloud Run)** | [`doc/infra/index.md`](infra/index.md) | `docker-compose.yml`, `.env.example`, `backend/Dockerfile`, `frontend/Dockerfile` | Active (4-Container Topology) |
+| **Infrastructure (Docker Compose, `.env`, GCP Cloud Run)** | [`doc/infra/index.md`](infra/index.md) | `docker-compose.yml`, `.env.example`, `backend/Dockerfile`, `frontend/Dockerfile`, `scripts/deploy-gcp.*` | Active (4-Container Topology) |
 
 ---
 

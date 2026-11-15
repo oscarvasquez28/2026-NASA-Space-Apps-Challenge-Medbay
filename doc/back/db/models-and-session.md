@@ -6,8 +6,8 @@ The database layer (`backend/app/db/`) uses SQLModel to combine Pydantic validat
 
 ## Resilient Connection Engine (`backend/app/db/session.py`)
 
-- **Primary Connection:** Connects via `postgresql+asyncpg` using `DATABASE_URL` (in container: `db:5432`).
-- **Resilient Fallback:** If PostgreSQL is unreachable or unconfigured (such as during isolated test runs), `init_db()` logs a warning and transparently switches to `sqlite+aiosqlite:///./astronaut_triage.db`.
+- **Primary Connection & URL Normalization:** Connects via `postgresql+asyncpg` using `DATABASE_URL` (in container: `db:5432`). `_normalize_database_url()` automatically rewrites `postgres://` or `postgresql://` prefixes to `postgresql+asyncpg://` and converts `sslmode=` query parameters to `ssl=` for `asyncpg` compatibility (preventing missing `psycopg` driver errors on Supabase/managed Postgres URIs).
+- **Resilient Fallback:** If PostgreSQL is unreachable, invalid, or unconfigured (such as during isolated test runs), `init_db()` logs a warning and transparently switches to `sqlite+aiosqlite:///./astronaut_triage.db`.
 - **Extension Initialization:** When running on PostgreSQL dialect, `init_db()` issues `CREATE EXTENSION IF NOT EXISTS vector;` to prepare pgvector support for Phase 3 embeddings.
 - **Session Injection:** `get_session()` is an async generator yielding an `AsyncSession`, used via FastAPI dependency injection `Depends(get_session)`.
 - **Baseline Seeding & Snapshot Reset (`restore_database_snapshot`):** `init_db()` seeds the baseline `Space Station [0g]` `LocationContextRecord`, 6 nominal historical `TelemetryRecord` points for `AST-01`, the default `GamificationProfileRecord` for `AST-01`, and the 8 NASA/CSA `MedicalKnowledgeChunk` records when empty. `restore_database_snapshot(session)` (exposed via `PUT /api/v1/tests/dbsnapshot`) clears mutated runtime rows across `face_credentials`, `operator_checkins`, `operator_users`, `telemedicine_alerts`, `telemetry_records`, `gamification_profiles`, and `location_contexts` and re-seeds the identical clean baseline sample dataset.
