@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { DEFAULT_LOCATION } from "@/data/mission";
-import type { LocationId, ViewMode, ZoneId } from "@/types/health";
+import type { LocationId, LocationProfile, ViewMode, ZoneId } from "@/types/health";
 
 export type Quality = "high" | "balanced";
 
@@ -26,9 +26,13 @@ interface AppState {
   chatOpen: boolean;
   chatContextZoneId: ZoneId | null;
   booted: boolean;
+  liveLocationProfile: LocationProfile | null;
+  locationSynced: boolean;
 
   setViewMode: (m: ViewMode) => void;
   setLocationId: (id: LocationId) => void;
+  setLiveLocationProfile: (p: LocationProfile | null) => void;
+  setLocationSynced: (v: boolean) => void;
   setQuality: (q: Quality) => void;
   setReduceMotion: (v: boolean) => void;
   setAutoRotate: (v: boolean) => void;
@@ -55,16 +59,20 @@ export const useAppStore = create<AppState>()(
       streakDays: 0,
       checklistDay: todayKey(),
       checklistDone: [],
-      ownedSkinIds: ["skin-nominal"],
+      ownedSkinIds: ["skin_standard_suit"],
 
       hydrated: false,
       commandOpen: false,
       chatOpen: false,
       chatContextZoneId: null,
       booted: false,
+      liveLocationProfile: null,
+      locationSynced: false,
 
       setViewMode: (viewMode) => set({ viewMode }),
       setLocationId: (locationId) => set({ locationId }),
+      setLiveLocationProfile: (liveLocationProfile) => set({ liveLocationProfile }),
+      setLocationSynced: (locationSynced) => set({ locationSynced }),
       setQuality: (quality) => set({ quality }),
       setReduceMotion: (reduceMotion) => set({ reduceMotion }),
       setAutoRotate: (autoRotate) => set({ autoRotate }),

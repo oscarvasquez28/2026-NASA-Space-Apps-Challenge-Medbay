@@ -76,7 +76,8 @@ export function ZoneInspector({ member }: { member: CrewMember }) {
         {tab === "Overview" && (
           <div>
             <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.8 }}>
-              {member.description}
+              {(technical ? member.technical : member.highLevel) ??
+                member.description}
             </p>
             <table className="spec-table" style={{ marginTop: 14 }}>
               <tbody>
@@ -86,7 +87,7 @@ export function ZoneInspector({ member }: { member: CrewMember }) {
                 </tr>
                 <tr>
                   <th scope="row">Mission</th>
-                  <td>{member.mission}</td>
+                  <td>{member.locationSetting ?? member.mission}</td>
                 </tr>
                 <tr>
                   <th scope="row">Readiness</th>
@@ -177,29 +178,83 @@ export function ZoneInspector({ member }: { member: CrewMember }) {
         )}
 
         {tab === "Protocols" && (
-          <table className="spec-table">
-            <tbody>
-              {member.protocols.map((p) => (
-                <tr key={p.label}>
-                  <th scope="row">{p.label}</th>
-                  <td>{p.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div>
+            <table className="spec-table">
+              <tbody>
+                {member.protocols.map((p) => (
+                  <tr key={p.label}>
+                    <th scope="row">{p.label}</th>
+                    <td>{p.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {member.zones.some(
+              (z) => z.recommendedCountermeasures && z.recommendedCountermeasures.length > 0,
+            ) && (
+              <div style={{ marginTop: 12 }}>
+                <Eyebrow>Zone Countermeasures</Eyebrow>
+                {member.zones
+                  .filter((z) => z.recommendedCountermeasures?.length)
+                  .map((z) => (
+                    <div key={z.id} className="callout" style={{ marginTop: 8 }}>
+                      <div className="micro-8">{z.name}</div>
+                      <ul
+                        style={{
+                          margin: "4px 0 0 14px",
+                          fontSize: 11,
+                          color: "var(--muted)",
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {z.recommendedCountermeasures!.map((cm) => (
+                          <li key={cm}>{cm}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
         )}
 
         {tab === "Checks" && (
-          <table className="spec-table">
-            <tbody>
-              {member.checks.map((c) => (
-                <tr key={c.label}>
-                  <th scope="row">{c.label}</th>
-                  <td>{c.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div>
+            <table className="spec-table">
+              <tbody>
+                {member.checks.map((c) => (
+                  <tr key={c.label}>
+                    <th scope="row">{c.label}</th>
+                    <td>{c.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {member.zones.some((z) => z.selfExamSteps && z.selfExamSteps.length > 0) && (
+              <div style={{ marginTop: 12 }}>
+                <Eyebrow>Autonomous Self-Exam Protocols</Eyebrow>
+                {member.zones
+                  .filter((z) => z.selfExamSteps?.length)
+                  .map((z) => (
+                    <div key={z.id} className="callout" style={{ marginTop: 8 }}>
+                      <div className="micro-8">{z.name}</div>
+                      <ol
+                        style={{
+                          margin: "4px 0 0 16px",
+                          fontSize: 11,
+                          color: "var(--muted)",
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {z.selfExamSteps!.map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
         )}
 
         {/* monitored zones — numbered list driving the same focus pipeline */}
@@ -221,31 +276,65 @@ export function ZoneInspector({ member }: { member: CrewMember }) {
           </div>
         </div>
 
-        {/* drill-down anatomy — organs inside the selected zone */}
+        {/* drill-down anatomy & self-exam — selected zone details */}
         {(() => {
           const selZone = member.zones.find((z) => z.id === selectedZoneId);
           const organs = organsOf(selectedZoneId);
-          if (!selZone || organs.length === 0) return null;
+          if (!selZone) return null;
           return (
-            <div style={{ marginTop: 14 }}>
-              <Eyebrow>Internal structures / {selZone.name}</Eyebrow>
-              <div style={{ marginTop: 8 }}>
-                {organs.map((o) => (
-                  <button
-                    key={o.id}
-                    className="zone-list-item"
-                    aria-pressed={selectedOrganId === o.id}
-                    onClick={() => focusOrgan(o)}
-                  >
-                    <span className="zn" style={{ color: "var(--dim)" }}>
-                      ├
-                    </span>
-                    <span className="zl">{o.name}</span>
-                    <StatusDot level={organStatus(o, selZone)} />
-                  </button>
-                ))}
-              </div>
-            </div>
+            <>
+              {(selZone.selfExamSteps?.length || selZone.recommendedCountermeasures?.length) && (
+                <div className="callout" style={{ marginTop: 14 }}>
+                  <Eyebrow>{selZone.name} Protocol</Eyebrow>
+                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.6 }}>
+                    {(technical ? selZone.technical : selZone.highLevel) ?? selZone.description}
+                  </p>
+                  {selZone.selfExamSteps && selZone.selfExamSteps.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <span className="micro-8">SELF-EXAM STEPS</span>
+                      <ol style={{ margin: "4px 0 0 16px", fontSize: 11, color: "var(--muted)" }}>
+                        {selZone.selfExamSteps.map((s) => (
+                          <li key={s}>{s}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                  {selZone.recommendedCountermeasures &&
+                    selZone.recommendedCountermeasures.length > 0 && (
+                      <div style={{ marginTop: 8 }}>
+                        <span className="micro-8">COUNTERMEASURES</span>
+                        <ul style={{ margin: "4px 0 0 14px", fontSize: 11, color: "var(--status-nominal)" }}>
+                          {selZone.recommendedCountermeasures.map((cm) => (
+                            <li key={cm}>{cm}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                </div>
+              )}
+
+              {organs.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <Eyebrow>Internal structures / {selZone.name}</Eyebrow>
+                  <div style={{ marginTop: 8 }}>
+                    {organs.map((o) => (
+                      <button
+                        key={o.id}
+                        className="zone-list-item"
+                        aria-pressed={selectedOrganId === o.id}
+                        onClick={() => focusOrgan(o)}
+                      >
+                        <span className="zn" style={{ color: "var(--dim)" }}>
+                          ├
+                        </span>
+                        <span className="zl">{o.name}</span>
+                        <StatusDot level={organStatus(o, selZone)} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           );
         })()}
 

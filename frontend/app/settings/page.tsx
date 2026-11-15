@@ -1,15 +1,25 @@
 "use client";
 
 /**
- * /settings — persisted app preferences: render quality, auto-rotate,
- * reduced motion, view mode. Provider/env info surfaced for transparency.
+ * /settings — persisted app preferences + DB seeder snapshot restore
+ * (PUT /api/v1/tests/dbsnapshot — Postman #29).
  */
 
-import { Eyebrow, Disclaimer } from "@/components/ui/primitives";
-import { useAppStore, type Quality } from "@/stores/app-store";
+import { RotateCcw } from "lucide-react";
+import { useState } from "react";
+
+import { Disclaimer, Eyebrow } from "@/components/ui/primitives";
 import { useHealthStatus } from "@/hooks/useHealthStatus";
+import { useLocationContext } from "@/hooks/useLocationContext";
+import { useProvider } from "@/hooks/useProvider";
+import { useAppStore, type Quality } from "@/stores/app-store";
+import type { DatabaseSnapshotRestoreResponse } from "@/types/health";
 
 export default function SettingsPage() {
+  const provider = useProvider();
+  const { refresh: refreshLocation } = useLocationContext();
+  const setLocationSynced = useAppStore((s) => s.setLocationSynced);
+
   const quality = useAppStore((s) => s.quality);
   const setQuality = useAppStore((s) => s.setQuality);
   const autoRotate = useAppStore((s) => s.autoRotate);
@@ -19,6 +29,29 @@ export default function SettingsPage() {
   const viewMode = useAppStore((s) => s.viewMode);
   const setViewMode = useAppStore((s) => s.setViewMode);
   const { providerKind } = useHealthStatus();
+
+  const [restoring, setRestoring] = useState(false);
+  const [restoreRes, setRestoreRes] =
+    useState<DatabaseSnapshotRestoreResponse | null>(null);
+  const [restoreErr, setRestoreErr] = useState<string | null>(null);
+
+  const handleRestore = async () => {
+    if (!provider || restoring) return;
+    setRestoring(true);
+    setRestoreErr(null);
+    try {
+      const res = await provider.restoreDatabaseSnapshot();
+      setRestoreRes(res);
+      setLocationSynced(false);
+      await refreshLocation();
+    } catch (e) {
+      setRestoreErr(
+        e instanceof Error ? e.message : "Database snapshot restore failed.",
+      );
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const row = (
     label: string,
@@ -36,7 +69,9 @@ export default function SettingsPage() {
     >
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13 }}>{label}</div>
-        <div className="micro-8" style={{ marginTop: 3 }}>{desc}</div>
+        <div className="micro-8" style={{ marginTop: 3 }}>
+          {desc}
+        </div>
       </div>
       {control}
     </div>
@@ -54,8 +89,8 @@ export default function SettingsPage() {
   );
 
   return (
-    <div style={{ padding: "22px 26px", maxWidth: 640 }}>
-      <Eyebrow>System / preferences</Eyebrow>
+    <div style={{ padding: "22px 26px", maxWidth: 680 }}>
+      <Eyebrow>System / preferences &amp; database control</Eyebrow>
 
       <div style={{ marginTop: 14 }}>
         {row(
@@ -106,12 +141,56 @@ export default function SettingsPage() {
           "Active HealthDataProvider implementation",
           <span className="micro">{providerKind ?? "resolving…"}</span>,
         )}
+        {row(
+          "Mission database snapshot (#29)",
+          "Reset telemetry history, location context, gamification, and telemedicine queue to clean baseline seed",
+          <button
+            className="btn"
+            disabled={!provider || restoring}
+            onClick={() => void handleRestore()}
+          >
+            <RotateCcw size={11} />
+            {restoring ? "Restoring…" : "Restore DB Snapshot"}
+          </button>,
+        )}
       </div>
+
+      {restoreErr && (
+        <p
+          className="micro"
+          role="alert"
+          style={{ marginTop: 14, color: "var(--status-critical)" }}
+        >
+          {restoreErr}
+        </p>
+      )}
+
+      {restoreRes && (
+        <div className="callout" style={{ marginTop: 14 }} role="status">
+          <div className="micro-8" style={{ color: "var(--status-nominal)" }}>
+            SNAPSHOT RESTORED · {restoreRes.default_astronaut_id} ·{" "}
+            {restoreRes.default_location_setting} ·{" "}
+            {new Date(restoreRes.restored_at).toLocaleTimeString()}
+          </div>
+          <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+            {viewMode === "technical"
+              ? restoreRes.technical
+              : restoreRes.high_level}
+          </p>
+          <div className="micro-8" style={{ marginTop: 6, color: "var(--dim)" }}>
+            SEEDED COUNTS:{" "}
+            {Object.entries(restoreRes.seeded_counts)
+              .map(([k, v]) => `${k}=${v}`)
+              .join(" · ")}
+          </div>
+        </div>
+      )}
 
       <div style={{ marginTop: 22 }}>
         <Disclaimer>
           Preferences persist in localStorage (astro-lab:prefs). Provider is
-          selected via NEXT_PUBLIC_DATA_PROVIDER / DATA_PROVIDER env.
+          selected via NEXT_PUBLIC_DATA_PROVIDER / DATA_PROVIDER env (default
+          rest).
         </Disclaimer>
       </div>
     </div>

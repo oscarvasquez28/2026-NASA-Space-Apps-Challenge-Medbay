@@ -27,10 +27,14 @@ import { Suspense } from "react";
 const METRICS: { id: TelemetryMetric; label: string }[] = [
   { id: "heart_rate", label: "Heart rate" },
   { id: "spo2", label: "SpO2" },
+  { id: "blood_sugar", label: "Blood glucose" },
+  { id: "bone_density", label: "Bone density (BMD)" },
+  { id: "visual_acuity", label: "Visual acuity (SANS)" },
   { id: "core_temp", label: "Core temp" },
-  { id: "exertion", label: "Exertion" },
-  { id: "radiation", label: "Radiation" },
-  { id: "fatigue", label: "Fatigue" },
+  { id: "radiation", label: "Radiation dose" },
+  { id: "mission_readiness", label: "Mission readiness" },
+  { id: "exertion", label: "Exertion (sim)" },
+  { id: "fatigue", label: "Fatigue (sim)" },
 ];
 
 const OVERLAYS: { id: OverlayMode; label: string }[] = [
@@ -72,7 +76,7 @@ function TelemetryInner() {
           ))}
         </div>
         <span className="micro-8" style={{ marginLeft: "auto" }}>
-          CONCEPTUAL SIMULATION
+          {series?.indicator ? `TREND ENGINE · ${series.indicator}` : "TELEMETRY & 95% CI FORECAST"}
         </span>
       </div>
 
@@ -162,9 +166,8 @@ function TelemetryInner() {
         )}
         <div style={{ marginTop: 14 }}>
           <Disclaimer>
-            SERIES ARE DETERMINISTIC SIMULATIONS — EVENT MARKERS AND FORECAST
-            LINES ARE CURATED, NOT PREDICTIVE MEDICINE. REFERENCE BANDS COME
-            FROM THE DATA PROVIDER.
+            TIME-SERIES HISTORY, MISSION EVENT MARKERS, AND LINEAR FORECASTS
+            WITH 95% CONFIDENCE INTERVALS ARE SERVED FROM THE ACTIVE DATA PROVIDER.
           </Disclaimer>
         </div>
       </div>

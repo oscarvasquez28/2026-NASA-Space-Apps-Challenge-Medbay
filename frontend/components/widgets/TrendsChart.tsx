@@ -35,14 +35,29 @@ export function TrendsChart({ series, viewMode, height = 260 }: TrendsChartProps
   const [showForecast, setShowForecast] = useState(true);
 
   const technical = viewMode === "technical";
-  const data = useMemo<{ t: string; value?: number; forecast?: number }[]>(() => {
+  const data = useMemo<
+    {
+      t: string;
+      value?: number;
+      forecast?: number;
+      lowerCi?: number;
+      upperCi?: number;
+    }[]
+  >(() => {
     const base = series.points.map((p) => ({ t: p.t, value: p.value }));
     if (!showForecast) return base;
     return [
       ...base,
-      ...series.forecast.map((p) => ({ t: p.t, forecast: p.value })),
+      ...series.forecast.map((p) => ({
+        t: p.t,
+        forecast: p.value,
+        lowerCi: p.lowerCi,
+        upperCi: p.upperCi,
+      })),
     ];
   }, [series, showForecast]);
+
+  const hasCi = showForecast && series.forecast.some((p) => p.lowerCi !== undefined);
 
   const bandBreach = useMemo(() => {
     if (!series.band || !showForecast) return null;
@@ -118,7 +133,7 @@ export function TrendsChart({ series, viewMode, height = 260 }: TrendsChartProps
                 );
                 return (
                   <ReferenceDot
-                    key={ev.label}
+                    key={`${ev.t}-${ev.label}`}
                     x={nearest.t}
                     y={nearest.value ?? nearest.forecast ?? 0}
                     r={3.5}
@@ -131,6 +146,7 @@ export function TrendsChart({ series, viewMode, height = 260 }: TrendsChartProps
             <Line
               type="monotone"
               dataKey="value"
+              name={series.label}
               stroke="var(--accent)"
               strokeWidth={1.6}
               dot={false}
@@ -140,13 +156,40 @@ export function TrendsChart({ series, viewMode, height = 260 }: TrendsChartProps
               <Line
                 type="monotone"
                 dataKey="forecast"
+                name="Projected forecast"
                 stroke="var(--accent)"
-                strokeWidth={1.2}
+                strokeWidth={1.4}
                 strokeDasharray="4 4"
-                strokeOpacity={0.55}
+                strokeOpacity={0.75}
                 dot={false}
                 connectNulls
               />
+            )}
+            {hasCi && (
+              <>
+                <Line
+                  type="monotone"
+                  dataKey="upperCi"
+                  name="95% CI upper"
+                  stroke="var(--status-caution)"
+                  strokeWidth={1}
+                  strokeDasharray="2 3"
+                  strokeOpacity={0.45}
+                  dot={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="lowerCi"
+                  name="95% CI lower"
+                  stroke="var(--status-caution)"
+                  strokeWidth={1}
+                  strokeDasharray="2 3"
+                  strokeOpacity={0.45}
+                  dot={false}
+                  connectNulls
+                />
+              </>
             )}
           </LineChart>
         </ResponsiveContainer>
@@ -162,22 +205,32 @@ export function TrendsChart({ series, viewMode, height = 260 }: TrendsChartProps
         }}
       >
         {series.events.map((ev) => (
-          <span key={ev.label} className="micro-8">
+          <span key={`${ev.t}-${ev.label}`} className="micro-8">
             <span style={{ color: "var(--accent)" }}>●</span> {ev.label}
+            {ev.impact ? ` (${ev.impact})` : ""}
             {technical && ` · ${fmtTime(ev.t)}`}
           </span>
         ))}
       </div>
 
-      {bandBreach && series.band && (
+      {(series.thresholdWarning || bandBreach) && (
         <p
           className="micro"
           role="alert"
           style={{ marginTop: 10, color: "var(--status-urgent)" }}
         >
-          ▸ FORECAST CROSSES REFERENCE BAND NEAR {fmtTime(bandBreach.t)} (
-          {bandBreach.value} {series.unit} vs band {series.band.low}–
-          {series.band.high})
+          ▸{" "}
+          {series.warningDetails
+            ? series.warningDetails
+            : bandBreach && series.band
+              ? `FORECAST CROSSES REFERENCE BAND NEAR ${fmtTime(bandBreach.t)} (${bandBreach.value} ${series.unit} vs band ${series.band.low}–${series.band.high})`
+              : "THRESHOLD WARNING ACTIVE"}
+        </p>
+      )}
+
+      {(series.highLevel || series.technical) && (
+        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8, lineHeight: 1.6 }}>
+          {technical ? series.technical : series.highLevel}
         </p>
       )}
     </div>

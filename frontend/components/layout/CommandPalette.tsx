@@ -12,6 +12,7 @@ import {
 
 import { useCrew } from "@/hooks/useCrew";
 import { useLocationContext } from "@/hooks/useLocationContext";
+import { useProvider } from "@/hooks/useProvider";
 import { dispatchViewerCommand } from "@/stores/viewer-store";
 import { useAppStore } from "@/stores/app-store";
 import type { LocationId } from "@/types/health";
@@ -49,8 +50,10 @@ export function CommandPalette() {
   const setOpen = useAppStore((s) => s.setCommandOpen);
   const setViewMode = useAppStore((s) => s.setViewMode);
   const viewMode = useAppStore((s) => s.viewMode);
+  const provider = useProvider();
   const { crew } = useCrew();
-  const { locations, setLocation } = useLocationContext();
+  const { locations, setLocation, refresh } = useLocationContext();
+  const setLocationSynced = useAppStore((s) => s.setLocationSynced);
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -107,12 +110,27 @@ export function CommandPalette() {
         kind: "location" as const,
         run: () => setLocation(l.id as LocationId),
       })),
+      ...(provider
+        ? [
+            {
+              id: "db-snapshot-restore",
+              label: "Restore Database Seeder Snapshot (PUT /api/v1/tests/dbsnapshot)",
+              kind: "mode" as const,
+              run: () => {
+                void provider.restoreDatabaseSnapshot().then(() => {
+                  setLocationSynced(false);
+                  void refresh();
+                });
+              },
+            },
+          ]
+        : []),
     ];
     const q = query.trim().toLowerCase();
     return q
       ? list.filter((i) => i.label.toLowerCase().includes(q))
       : list;
-  }, [crew, locations, query, router, setLocation, setViewMode, viewMode]);
+  }, [crew, locations, provider, query, refresh, router, setLocation, setLocationSynced, setViewMode, viewMode]);
 
   const runItem = useCallback(
     (item: CommandItem) => {

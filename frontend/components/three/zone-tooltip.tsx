@@ -66,10 +66,20 @@ export function ZoneTooltip({
       </dl>
 
       <p className="tt-desc">
-        {viewMode === "technical"
-          ? zone.description
-          : zone.description.split(".")[0] + "."}
+        {(viewMode === "technical" ? zone.technical : zone.highLevel) ??
+          (viewMode === "technical"
+            ? zone.description
+            : zone.description.split(".")[0] + ".")}
       </p>
+
+      {zone.selfExamSteps && zone.selfExamSteps.length > 0 && (
+        <div
+          className="micro-8"
+          style={{ marginTop: 6, color: "var(--muted)", lineHeight: 1.5 }}
+        >
+          SELF-EXAM: {zone.selfExamSteps[0]}
+        </div>
+      )}
 
       <button
         className="btn"

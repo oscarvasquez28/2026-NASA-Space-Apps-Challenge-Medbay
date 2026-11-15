@@ -2,23 +2,27 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import { useProvider } from "./useProvider";
 import { useAppStore } from "@/stores/app-store";
 import type {
   AssistantResponse,
   ChatMessage,
   ZoneId,
 } from "@/types/health";
+import { useProvider } from "./useProvider";
+
+export interface SendChatOptions {
+  forceOffline?: boolean;
+  includeVoice?: boolean;
+  diagnosticImageBase64?: string | null;
+}
 
 /**
- * AI companion conversation state. Owns the message list, thinking/cancel
- * lifecycle and returns AssistantResponse contracts ({message,
- * referencedZoneIds, actions, assumptions}) the caller renders — including
- * focus actions that drive the 3D viewer.
+ * AI companion conversation state wired to POST /api/v1/ai/chat.
  */
 export function useAICompanion(crewId: string | undefined) {
   const provider = useProvider();
   const locationId = useAppStore((s) => s.locationId);
+  const viewMode = useAppStore((s) => s.viewMode);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +37,7 @@ export function useAICompanion(crewId: string | undefined) {
       prompt: string,
       contextZoneId?: ZoneId | null,
       onResponse?: (r: AssistantResponse) => void,
+      opts?: SendChatOptions,
     ) => {
       if (!provider || !crewId || !prompt.trim()) return;
       const seq = ++seqRef.current;
@@ -46,6 +51,7 @@ export function useAICompanion(crewId: string | undefined) {
           role: "user",
           text: prompt.trim(),
           contextZoneId: contextZoneId ?? undefined,
+          hasImage: Boolean(opts?.diagnosticImageBase64),
         },
       ]);
       setThinking(true);
@@ -54,7 +60,15 @@ export function useAICompanion(crewId: string | undefined) {
       try {
         const response = await provider.ask(
           crewId,
-          { prompt: prompt.trim(), contextZoneId, locationId },
+          {
+            prompt: prompt.trim(),
+            contextZoneId,
+            locationId,
+            viewMode,
+            forceOffline: opts?.forceOffline,
+            includeVoice: opts?.includeVoice,
+            diagnosticImageBase64: opts?.diagnosticImageBase64,
+          },
           controller.signal,
         );
         if (seq !== seqRef.current) return;
@@ -73,7 +87,7 @@ export function useAICompanion(crewId: string | undefined) {
         if (seq === seqRef.current) setThinking(false);
       }
     },
-    [provider, crewId, locationId],
+    [provider, crewId, locationId, viewMode],
   );
 
   const cancel = useCallback(() => {

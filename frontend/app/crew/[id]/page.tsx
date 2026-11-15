@@ -23,6 +23,7 @@ import { ViewerToolbar } from "@/components/three/viewer-toolbar";
 import { ZoneTooltip } from "@/components/three/zone-tooltip";
 import { getOrgan } from "@/data/organs";
 import { useBodyStatus } from "@/hooks/useBodyStatus";
+import { useProvider } from "@/hooks/useProvider";
 import { useAppStore } from "@/stores/app-store";
 import { ViewerProvider, useViewerStore } from "@/stores/viewer-store";
 
@@ -40,6 +41,7 @@ export default function CrewMonitorPage({
 }
 
 function Workspace({ crewId }: { crewId: string }) {
+  const provider = useProvider();
   const { member, loading, error, refresh } = useBodyStatus(crewId);
   const chatOpen = useAppStore((s) => s.chatOpen);
   const closeChat = useAppStore((s) => s.closeChat);
@@ -115,12 +117,33 @@ function Workspace({ crewId }: { crewId: string }) {
             {member?.name ?? crewId}
           </h1>
           <div className="micro-8" style={{ marginTop: 2 }}>
-            {member?.subtitle ?? "LOADING"}
+            {(viewMode === "technical"
+              ? member?.technical
+              : member?.highLevel) ??
+              member?.subtitle ??
+              "LOADING"}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="status-chip nominal">
-            <StatusDot level="NOMINAL" /> MONITORED · SIM
+          <span
+            className={`status-chip ${
+              member?.overallStatus === "critical"
+                ? "critical"
+                : member?.overallStatus === "caution"
+                  ? "caution"
+                  : "nominal"
+            }`}
+          >
+            <StatusDot
+              level={
+                member?.overallStatus === "critical"
+                  ? "CRITICAL"
+                  : member?.overallStatus === "caution"
+                    ? "CAUTION"
+                    : "NOMINAL"
+              }
+            />{" "}
+            MONITORED · {provider?.kind === "rest" ? "LIVE" : "SIM"}
           </span>
           <button
             className="btn"

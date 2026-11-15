@@ -21,6 +21,8 @@ import {
 import { ViewerProvider } from "@/stores/viewer-store";
 import { ChecklistWidget } from "@/components/widgets/ChecklistWidget";
 import { useCrew } from "@/hooks/useCrew";
+import { useLocationContext } from "@/hooks/useLocationContext";
+import { useProvider } from "@/hooks/useProvider";
 import { useAppStore } from "@/stores/app-store";
 import { DEFAULT_CREW_ID, getCrewMember } from "@/data/crew";
 
@@ -32,9 +34,14 @@ const JOURNEY = [
 ];
 
 export default function LabHome() {
+  const provider = useProvider();
   const { crew, loading } = useCrew();
+  const { profile } = useLocationContext();
   const viewMode = useAppStore((s) => s.viewMode);
-  const hero = getCrewMember(DEFAULT_CREW_ID)!;
+  const hero =
+    crew.find((c) => c.id === DEFAULT_CREW_ID) ??
+    crew[0] ??
+    getCrewMember(DEFAULT_CREW_ID)!;
   const flagged = hero.zones.filter((z) => z.status !== "NOMINAL").length;
 
   return (
@@ -95,11 +102,20 @@ export default function LabHome() {
       {/* --------------------------- spec strip --------------------------- */}
       <section className="hero-data-strip" aria-label="Mission metrics">
         {[
-          { l: "CREW ON BOARD", v: "04", u: "AST" },
-          { l: "MISSION DAY", v: "142", u: "SOL" },
-          { l: "ZONES MONITORED", v: "06", u: "CH" },
-          { l: "COMM LATENCY", v: "0.6", u: "s" },
-          { l: "LINK MODE", v: "SIM", u: "" },
+          { l: "CREW ON BOARD", v: String(crew.length || 4).padStart(2, "0"), u: "AST" },
+          { l: "ENVIRONMENT", v: String(profile.gravityG ?? 0), u: "g" },
+          { l: "ZONES MONITORED", v: String(hero.zones.length).padStart(2, "0"), u: "CH" },
+          { l: "COMM LATENCY", v: String(profile.commLatencySec), u: "s" },
+          {
+            l: "LINK MODE",
+            v:
+              provider?.kind === "rest"
+                ? profile.offlineFallbackActive
+                  ? "LOCAL"
+                  : "LIVE"
+                : "SIM",
+            u: "",
+          },
         ].map((c) => (
           <div key={c.l} className="cell">
             <div className="micro-8">{c.l}</div>
