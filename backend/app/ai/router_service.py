@@ -1,5 +1,6 @@
 """Hybrid Cloud + Local LLM Clinical Router Service."""
 
+import base64
 import logging
 from typing import Any, Optional
 
@@ -16,6 +17,17 @@ from app.voice.models import TTSRequest, TTSResponse
 from app.voice.tts_service import synthesize_voice
 
 logger = logging.getLogger(__name__)
+
+
+def _guess_image_mime(data: bytes) -> str:
+    """Sniff the container format for a decoded diagnostic image payload."""
+    if data.startswith(b"\x89PNG"):
+        return "image/png"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:3] == b"GIF":
+        return "image/gif"
+    return "image/jpeg"
 
 
 def _evaluate_clinical_severity(
@@ -281,8 +293,8 @@ def _synthesize_deterministic_clinical_guidance(
         ]
 
     if has_image:
-        high_level += " Multimodal diagnostic image analyzed: epidermal and structural features aligned with clinical protocol findings."
-        technical += " Diagnostic image telemetry parsed: high-resolution dermatological/ultrasound features integrated into differential diagnosis."
+        high_level += " Diagnostic image received — no on-board vision model ran in offline mode; flagged for flight-surgeon review."
+        technical += " Diagnostic image payload ingested (base64); no vision-capable inference tier available offline — flagged for ground medical review."
 
     return (high_level, technical, recommended_actions)
 
@@ -330,6 +342,20 @@ async def handle_ai_chat(
         retrieved_docs=retrieved_knowledge,
     )
 
+    # 4.5 Decode the optional diagnostic image once so whichever tier answers
+    #     actually receives it in a vision-capable format.
+    diag_image_b64: Optional[str] = request.diagnostic_image_base64 or None
+    if diag_image_b64 and ";base64," in diag_image_b64:
+        # Tolerate data-URL framed payloads — providers want raw base64.
+        diag_image_b64 = diag_image_b64.rsplit(";base64,", 1)[-1]
+    diag_image_bytes: Optional[bytes] = None
+    if diag_image_b64:
+        try:
+            diag_image_bytes = base64.b64decode(diag_image_b64, validate=True)
+        except Exception:
+            logger.warning("Ignoring invalid diagnostic_image_base64 payload")
+            diag_image_b64 = None
+
     provider_used: Any = "offline-rag-clinical-synth"
     failover_reason: Optional[str] = None
     offline_mode = True
@@ -371,9 +397,23 @@ async def handle_ai_chat(
                 f"Retrieved Protocols: {[d.title for d in retrieved_knowledge]}\n"
                 f"Provide concise crew instructions and technical flight surgeon assessment."
             )
+            contents: list[Any] = [prompt]
+            if diag_image_bytes is not None:
+                from google.genai import types as genai_types
+
+                contents[0] = prompt + (
+                    "\nA diagnostic image is attached — analyze its visible "
+                    "clinical features and fold them into the assessment."
+                )
+                contents.append(
+                    genai_types.Part.from_bytes(
+                        data=diag_image_bytes,
+                        mime_type=_guess_image_mime(diag_image_bytes),
+                    )
+                )
             response = await client.aio.models.generate_content(
                 model=app_settings.vertex_ai_model,
-                contents=prompt,
+                contents=contents,
             )
             if response and response.text:
                 provider_used = "google-genai:gemini"
@@ -401,6 +441,13 @@ async def handle_ai_chat(
             import ollama
 
             ollama_client = ollama.AsyncClient(host=app_settings.ollama_base_url)
+            user_message: dict[str, Any] = {
+                "role": "user",
+                "content": request.message,
+            }
+            if diag_image_b64:
+                # MedGemma is multimodal — Ollama accepts base64 image frames.
+                user_message["images"] = [diag_image_b64]
             # Enforce hard 4.0s timeout (covers DNS resolution + inference) to avoid blocking astronauts.
             chat_resp = await asyncio.wait_for(
                 ollama_client.chat(
@@ -410,7 +457,7 @@ async def handle_ai_chat(
                             "role": "system",
                             "content": "You are MedGemma space medicine clinical advisor.",
                         },
-                        {"role": "user", "content": request.message},
+                        user_message,
                     ],
                 ),
                 timeout=4.0,
@@ -429,7 +476,7 @@ async def handle_ai_chat(
 
     # Tier 3: Deterministic Offline RAG Clinical Synthesizer (Guaranteed 100% Zero-500)
     if provider_used == "offline-rag-clinical-synth":
-        has_diag_image = bool(request.diagnostic_image_base64)
+        has_diag_image = diag_image_b64 is not None
         synth_high, synth_tech, synth_actions = _synthesize_deterministic_clinical_guidance(
             message=request.message,
             status=status,

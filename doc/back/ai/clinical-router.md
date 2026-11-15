@@ -26,16 +26,20 @@ The AI Clinical Router (`backend/app/ai/router_service.py`) implements a resilie
 |  [Tier 1: Cloud GenAI]                                      |
 |    - Eligible: latency <= 5.0s, offline=False, API key set |
 |    - Model: gemini-2.5-flash via google.genai               |
+|    - diagnostic_image_base64 -> inline image Part           |
 |    - Exception / Timeout -> Cascade to Tier 2              |
 |                                                             |
 |  [Tier 2: Edge LLM]                                         |
 |    - Eligible: latency > 5s or Tier 1 failed, & OLLAMA_BASE_URL|
 |    - Model: medgemma via Ollama client (4.0s wait_for timeout)|
+|    - diagnostic_image_base64 -> message "images" field      |
 |    - Exception / Model Not Found -> Cascade to Tier 3       |
 |                                                             |
 |  [Tier 3: Offline RAG Clinical Synthesizer]                 |
 |    - Deterministic clinical countermeasure synthesizer      |
 |    - Grounded in retrieved NASA HRP protocols & vitals      |
+|    - Image acknowledged as received, not analyzed (no      |
+|      vision tier offline) — flagged for surgeon review      |
 |    - 100% Guaranteed ZERO 500 ERRORS under any condition    |
 +------------------------------+------------------------------+
                                |

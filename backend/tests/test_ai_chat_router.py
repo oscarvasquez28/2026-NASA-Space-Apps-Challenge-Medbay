@@ -1,9 +1,16 @@
 """Test suite for Feature 3.2: Hybrid Cloud + Local LLM Clinical Router."""
 
+from typing import Any
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+
+_PNG_1PX_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
 
 
 @pytest.mark.asyncio
@@ -83,6 +90,54 @@ async def test_ai_chat_multimodal_diagnostic_image() -> None:
             or "rash" in reply_lower
         )
         assert len(data["recommended_actions"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_forwards_diagnostic_image_to_edge_llm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the diagnostic image reaches the Ollama edge LLM message payload."""
+    import ollama
+
+    captured: dict[str, Any] = {}
+
+    class _FakeOllamaClient:
+        def __init__(self, host: str | None = None) -> None:
+            pass
+
+        async def chat(
+            self,
+            model: str | None = None,
+            messages: list[dict[str, Any]] | None = None,
+            **kwargs: Any,
+        ) -> dict[str, Any]:
+            captured["messages"] = messages
+            return {"message": {"content": "Edge assessment: image reviewed."}}
+
+    monkeypatch.setattr(ollama, "AsyncClient", _FakeOllamaClient)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.post(
+            "/api/v1/context/location",
+            json={"location_setting": "Space Station [0g]"},
+        )
+        payload = {
+            "astronaut_id": "AST-01",
+            "message": "Rash on forearm — analyze the attached scan.",
+            "diagnostic_image_base64": _PNG_1PX_B64,
+            "force_offline": False,
+        }
+        response = await client.post("/api/v1/ai/chat", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+
+        if data["provider_used"] == "google-genai:gemini":
+            pytest.skip("Gemini tier active in this environment")
+        assert data["provider_used"] == "ollama:medgemma"
+        user_msg = captured["messages"][-1]
+        assert user_msg["role"] == "user"
+        assert user_msg["images"] == [_PNG_1PX_B64]
 
 
 @pytest.mark.asyncio
