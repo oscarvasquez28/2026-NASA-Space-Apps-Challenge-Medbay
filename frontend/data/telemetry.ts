@@ -95,6 +95,42 @@ const METRIC_SPECS: Record<TelemetryMetric, MetricSpec> = {
     decimals: 0,
     band: { low: 0, high: 70, label: "ENGINE REFERENCE BAND" },
   },
+  blood_sugar: {
+    label: "Blood glucose",
+    unit: "mg/dL",
+    base: 94,
+    drift: 0.25,
+    jitter: 6,
+    decimals: 0,
+    band: { low: 70, high: 120, label: "ENGINE REFERENCE BAND" },
+  },
+  bone_density: {
+    label: "Bone mineral density T-score",
+    unit: "T-score",
+    base: -0.4,
+    drift: -0.02,
+    jitter: 0.08,
+    decimals: 2,
+    band: { low: -1.0, high: 1.5, label: "ENGINE REFERENCE BAND" },
+  },
+  visual_acuity: {
+    label: "Visual acuity (logMAR)",
+    unit: "logMAR",
+    base: 0.04,
+    drift: 0.004,
+    jitter: 0.02,
+    decimals: 2,
+    band: { low: -0.1, high: 0.2, label: "ENGINE REFERENCE BAND" },
+  },
+  mission_readiness: {
+    label: "Mission readiness score",
+    unit: "%",
+    base: 91,
+    drift: -0.1,
+    jitter: 2.2,
+    decimals: 1,
+    band: { low: 75, high: 100, label: "ENGINE REFERENCE BAND" },
+  },
 };
 
 export function buildTelemetrySeries(
@@ -128,12 +164,19 @@ export function buildTelemetrySeries(
   const trend =
     (points[points.length - 1].value - points[points.length - 9].value) / 8;
   for (let i = 1; i <= 12; i++) {
+    const val = round(last + trend * i * 0.9, spec.decimals);
+    const margin = Math.max(Math.abs(spec.jitter) * 0.45 * Math.sqrt(i), 0.02);
     forecast.push({
       t: new Date(now.getTime() + i * stepMs).toISOString(),
-      value: round(last + trend * i * 0.9, spec.decimals),
+      value: val,
+      lowerCi: round(val - margin, spec.decimals),
+      upperCi: round(val + margin, spec.decimals),
     });
   }
 
+  const thresholdWarning = spec.band
+    ? last < spec.band.low || last > spec.band.high
+    : false;
   return {
     metric,
     label: spec.label,
@@ -142,6 +185,15 @@ export function buildTelemetrySeries(
     forecast,
     events: missionEvents(now),
     band: spec.band,
+    thresholdWarning,
+    warningDetails: thresholdWarning
+      ? `${spec.label} approaching reference limit (${last} ${spec.unit}).`
+      : null,
+    status: thresholdWarning ? "caution" : "nominal",
+    highLevel: thresholdWarning
+      ? `${spec.label} is drifting near mission boundary thresholds.`
+      : `${spec.label} remains within nominal flight bounds.`,
+    technical: `${spec.label} linear extrapolation horizon (n=${forecast.length}, 95% CI). Current=${last} ${spec.unit}.`,
   };
 }
 

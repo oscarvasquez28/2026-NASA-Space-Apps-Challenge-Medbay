@@ -18,10 +18,10 @@ export function GET() {
     "http://localhost:8080";
 
   const dataProvider =
-    process.env.DATA_PROVIDER === "rest" ||
-    process.env.NEXT_PUBLIC_DATA_PROVIDER === "rest"
-      ? "rest"
-      : "mock";
+    process.env.DATA_PROVIDER === "mock" ||
+    process.env.NEXT_PUBLIC_DATA_PROVIDER === "mock"
+      ? "mock"
+      : "rest";
 
   const astronautIds = (
     process.env.ASTRONAUT_IDS ??

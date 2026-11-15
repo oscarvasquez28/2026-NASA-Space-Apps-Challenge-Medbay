@@ -2,7 +2,7 @@
  * Provider factory + cached accessor.
  *
  * Selection order: NEXT_PUBLIC_DATA_PROVIDER (build-time) →
- * /api/runtime-config `dataProvider` (runtime, Docker) → "mock".
+ * /api/runtime-config `dataProvider` (runtime, Docker) → "rest".
  */
 
 import { getRuntimeConfig } from "@/lib/config";
@@ -25,11 +25,11 @@ async function resolve(): Promise<HealthDataProvider> {
   if (inlined === "rest" || inlined === "mock") return make(inlined);
   try {
     const cfg = await getRuntimeConfig();
-    if (cfg.dataProvider === "rest") return make("rest");
+    if (cfg.dataProvider === "mock") return make("mock");
   } catch {
     // fall through
   }
-  return make("mock");
+  return make("rest");
 }
 
 export function getProvider(): Promise<HealthDataProvider> {

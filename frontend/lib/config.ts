@@ -38,7 +38,7 @@ async function resolveConfig(): Promise<RuntimeConfig> {
     return {
       apiUrl: inlinedUrl.replace(/\/+$/, ""),
       astronautIds: parseIds(inlinedIds, FALLBACK_ASTRONAUT_IDS),
-      dataProvider: inlinedProvider === "rest" ? "rest" : "mock",
+      dataProvider: inlinedProvider === "mock" ? "mock" : "rest",
     };
   }
 
@@ -53,9 +53,9 @@ async function resolveConfig(): Promise<RuntimeConfig> {
             ? data.astronautIds
             : parseIds(inlinedIds, FALLBACK_ASTRONAUT_IDS),
         dataProvider:
-          data.dataProvider === "rest" || inlinedProvider === "rest"
-            ? "rest"
-            : "mock",
+          data.dataProvider === "mock" || inlinedProvider === "mock"
+            ? "mock"
+            : "rest",
       };
     }
   } catch {
@@ -65,7 +65,7 @@ async function resolveConfig(): Promise<RuntimeConfig> {
   return {
     apiUrl: FALLBACK_API_URL,
     astronautIds: parseIds(inlinedIds, FALLBACK_ASTRONAUT_IDS),
-    dataProvider: inlinedProvider === "rest" ? "rest" : "mock",
+    dataProvider: inlinedProvider === "mock" ? "mock" : "rest",
   };
 }
 
