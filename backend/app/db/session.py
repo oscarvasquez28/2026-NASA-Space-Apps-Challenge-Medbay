@@ -351,8 +351,134 @@ async def _seed_defaults_if_missing(session: AsyncSession) -> dict[str, int]:
     }
 
 
+async def _restore_from_snapshot_schema(session: AsyncSession) -> dict[str, int] | None:
+    """Copy the frozen `snapshot` schema tables back into `public`.
+
+    Returns per-table restored row counts, or None when no `snapshot` schema
+    exists (or the dialect is not PostgreSQL) so callers can fall back to the
+    seeder baseline.
+    """
+    if session.bind.dialect.name != "postgresql":
+        return None
+
+    schema_exists = (
+        await session.execute(
+            text("select 1 from information_schema.schemata where schema_name = 'snapshot'")
+        )
+    ).scalar_one_or_none()
+    if schema_exists is None:
+        return None
+
+    public_tables = [
+        row[0]
+        for row in (
+            await session.execute(
+                text(
+                    "select table_name from information_schema.tables "
+                    "where table_schema = 'public' and table_type = 'BASE TABLE'"
+                )
+            )
+        ).all()
+    ]
+    if public_tables:
+        joined = ", ".join(f'public."{name}"' for name in public_tables)
+        await session.execute(text(f"TRUNCATE TABLE {joined} CASCADE"))
+
+    restored: dict[str, int] = {}
+    snapshot_tables = [
+        row[0]
+        for row in (
+            await session.execute(
+                text(
+                    "select table_name from information_schema.tables "
+                    "where table_schema = 'snapshot' and table_type = 'BASE TABLE' "
+                    "and table_name <> '_meta'"
+                )
+            )
+        ).all()
+    ]
+    for table in snapshot_tables:
+        if table not in public_tables:
+            continue
+        cols = [
+            row[0]
+            for row in (
+                await session.execute(
+                    text(
+                        "select column_name from information_schema.columns "
+                        "where table_schema = 'snapshot' and table_name = :tbl "
+                        "and column_name in ("
+                        "  select column_name from information_schema.columns "
+                        "  where table_schema = 'public' and table_name = :tbl"
+                        ") order by ordinal_position"
+                    ),
+                    {"tbl": table},
+                )
+            ).all()
+        ]
+        if not cols:
+            continue
+        col_list = ", ".join(f'"{c}"' for c in cols)
+        await session.execute(
+            text(
+                f'INSERT INTO public."{table}" ({col_list}) '
+                f'SELECT {col_list} FROM snapshot."{table}"'
+            )
+        )
+        restored[table] = int(
+            (await session.execute(text(f'SELECT count(*) FROM public."{table}"'))).scalar_one()
+        )
+
+    serial_cols = (
+        await session.execute(
+            text(
+                "select table_name, column_name, "
+                "pg_get_serial_sequence('public.' || table_name, column_name) as seq "
+                "from information_schema.columns "
+                "where table_schema = 'public' "
+                "and pg_get_serial_sequence('public.' || table_name, column_name) is not null"
+            )
+        )
+    ).all()
+    for tbl, col, seq in serial_cols:
+        await session.execute(
+            text(f'SELECT setval(:seq, COALESCE((SELECT MAX("{col}") FROM public."{tbl}"), 1))'),
+            {"seq": seq},
+        )
+
+    await session.commit()
+    return restored
+
+
 async def restore_database_snapshot(session: AsyncSession) -> dict[str, Any]:
-    """Reset runtime tables back to the exact clean seeder baseline snapshot."""
+    """Restore `public` to the frozen `snapshot` schema point, else the seeder baseline."""
+    try:
+        restored_tables = await _restore_from_snapshot_schema(session)
+    except Exception:
+        await session.rollback()
+        restored_tables = None
+        logger.warning(
+            "Snapshot-schema restore failed; falling back to seeder baseline.",
+            exc_info=True,
+        )
+
+    if restored_tables is not None:
+        first_operator = (
+            await session.execute(select(OperatorUserRecord.astronaut_id).limit(1))
+        ).scalar_one_or_none()
+        first_location = (
+            await session.execute(select(LocationContextRecord.location_setting).limit(1))
+        ).scalar_one_or_none()
+        logger.info("Database restored from snapshot schema: %s", restored_tables)
+        return {
+            "restored": True,
+            "restored_at": datetime.now(timezone.utc),
+            "default_astronaut_id": first_operator or DEFAULT_ASTRONAUT_ID,
+            "default_location_setting": first_location or DEFAULT_LOCATION_SETTING,
+            "seeded_counts": restored_tables,
+            "source": "snapshot",
+        }
+
     await session.execute(delete(FaceCredentialRecord))
     await session.execute(delete(OperatorCheckInRecord))
     await session.execute(delete(OperatorUserRecord))
@@ -376,6 +502,7 @@ async def restore_database_snapshot(session: AsyncSession) -> dict[str, Any]:
         "default_astronaut_id": DEFAULT_ASTRONAUT_ID,
         "default_location_setting": DEFAULT_LOCATION_SETTING,
         "seeded_counts": seeded_counts,
+        "source": "seeder",
     }
 
 

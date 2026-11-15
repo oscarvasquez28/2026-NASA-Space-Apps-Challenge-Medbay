@@ -26,24 +26,39 @@ class DatabaseSnapshotRestoreResponse(BaseModel):
 
 
 async def _handle_restore_snapshot(session: AsyncSession) -> DatabaseSnapshotRestoreResponse:
-    """Reset mutated database tables back to the clean seeder baseline snapshot."""
+    """Reset mutated database tables back to the saved snapshot point (seeder baseline fallback)."""
     result = await restore_database_snapshot(session)
     counts = result["seeded_counts"]
     astronaut_id = result["default_astronaut_id"]
     location = result["default_location_setting"]
 
-    high_level = (
-        f"Database restored to clean mission baseline. Astronaut {astronaut_id} is nominal "
-        f"at {location} with fresh baseline sample telemetry ready for demonstration."
-    )
-    technical = (
-        f"SnapshotRestore[dbsnapshot]: reset runtime tables and seeded "
-        f"{counts['location_contexts']} LocationContextRecord, "
-        f"{counts['telemetry_records']} TelemetryRecord ({astronaut_id}), "
-        f"{counts['gamification_profiles']} GamificationProfileRecord, "
-        f"{counts['telemedicine_alerts']} TelemedicineAlertRecord, and "
-        f"{counts['medical_knowledge_chunks']} MedicalKnowledgeChunk rows."
-    )
+    if result.get("source") == "snapshot":
+        high_level = (
+            f"Database restored to the saved snapshot point: "
+            f"{counts.get('operator_users', 0)} operators, "
+            f"{counts.get('telemetry_records', 0)} telemetry rows, and "
+            f"{counts.get('face_credentials', 0)} face credentials copied back "
+            f"from the frozen snapshot schema."
+        )
+        technical = (
+            "SnapshotRestore[dbsnapshot]: TRUNCATE public.* then copied from "
+            "snapshot schema — "
+            + ", ".join(f"{table}={n}" for table, n in sorted(counts.items()))
+            + "."
+        )
+    else:
+        high_level = (
+            f"Database restored to clean mission baseline. Astronaut {astronaut_id} is nominal "
+            f"at {location} with fresh baseline sample telemetry ready for demonstration."
+        )
+        technical = (
+            f"SnapshotRestore[dbsnapshot]: reset runtime tables and seeded "
+            f"{counts['location_contexts']} LocationContextRecord, "
+            f"{counts['telemetry_records']} TelemetryRecord ({astronaut_id}), "
+            f"{counts['gamification_profiles']} GamificationProfileRecord, "
+            f"{counts['telemedicine_alerts']} TelemedicineAlertRecord, and "
+            f"{counts['medical_knowledge_chunks']} MedicalKnowledgeChunk rows."
+        )
 
     return DatabaseSnapshotRestoreResponse(
         status="nominal",
@@ -60,12 +75,12 @@ async def _handle_restore_snapshot(session: AsyncSession) -> DatabaseSnapshotRes
 @router.put(
     "/dbsnapshot",
     response_model=DatabaseSnapshotRestoreResponse,
-    summary="Restore database to clean seeder baseline snapshot",
+    summary="Restore database to saved snapshot point (seeder baseline fallback)",
 )
 async def restore_dbsnapshot_put(
     session: AsyncSession = Depends(get_session),
 ) -> DatabaseSnapshotRestoreResponse:
-    """Reset runtime telemetry, context, alerts, and gamification state to seeder baseline."""
+    """Restore `public` tables from the frozen `snapshot` schema (seeder baseline if absent)."""
     return await _handle_restore_snapshot(session)
 
 
