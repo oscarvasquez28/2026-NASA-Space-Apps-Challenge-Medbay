@@ -267,6 +267,7 @@ class CheckupCompleteRequest(BaseModel):
     completed_tasks: List[str] = Field(default_factory=list, description="List of routine task IDs completed in this checkup")
     perform_gachapon_roll: bool = Field(default=True, description="Whether to spend 1 token to roll a companion skin")
     equip_skin_id: Optional[str] = Field(default=None, description="Optional skin ID to immediately equip if unlocked")
+    unlock_skin_id: Optional[str] = Field(default=None, description="Optional skin ID awarded by check-in Prize Drum to unlock")
     deterministic_seed: Optional[int] = Field(default=None, description="Optional seed for deterministic Gachapon rolls in tests")
 
 

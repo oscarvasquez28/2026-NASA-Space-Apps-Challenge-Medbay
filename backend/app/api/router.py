@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.routes.ai import router as ai_router
 from app.api.routes.astronaut import router as astronaut_router
+from app.api.routes.auth import router as auth_router
 from app.api.routes.context import router as context_router
 from app.api.routes.gamification import router as gamification_router
 from app.api.routes.telemedicine import router as telemedicine_router
@@ -22,3 +23,4 @@ api_router.include_router(ai_router)
 api_router.include_router(gamification_router)
 api_router.include_router(telemedicine_router)
 api_router.include_router(tests_router)
+api_router.include_router(auth_router)

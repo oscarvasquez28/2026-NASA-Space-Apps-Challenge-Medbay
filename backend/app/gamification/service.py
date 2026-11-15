@@ -158,6 +158,19 @@ async def complete_checkup_and_roll(
     profile = await get_or_create_profile(session, request.astronaut_id)
     unlocked_skins = set(profile.unlocked_skins)
 
+    # 0. Unlock explicit prize-drum reward skin if supplied
+    if request.unlock_skin_id:
+        normalized_unlock = SKIN_ALIASES.get(request.unlock_skin_id, request.unlock_skin_id)
+        valid_skin_ids = {s["skin_id"] for s in SKIN_CATALOG}
+        if normalized_unlock not in valid_skin_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown skin '{request.unlock_skin_id}'.",
+            )
+        if normalized_unlock not in unlocked_skins:
+            unlocked_skins.add(normalized_unlock)
+            profile.set_unlocked_skins(list(unlocked_skins))
+
     # 1. Validate skin equipping request before mutations
     target_skin_id: Optional[str] = None
     if request.equip_skin_id:

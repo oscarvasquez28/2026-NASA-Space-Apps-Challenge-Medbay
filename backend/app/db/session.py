@@ -15,6 +15,11 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlmodel import SQLModel
 
+from app.auth.models import (
+    FaceCredentialRecord,
+    OperatorCheckInRecord,
+    OperatorUserRecord,
+)
 from app.core.config import get_settings
 from app.db.models import LocationContextRecord, TelemedicineAlertRecord, TelemetryRecord
 from app.gamification.models import GamificationProfileRecord
@@ -320,6 +325,9 @@ async def _seed_defaults_if_missing(session: AsyncSession) -> dict[str, int]:
 
 async def restore_database_snapshot(session: AsyncSession) -> dict[str, Any]:
     """Reset runtime tables back to the exact clean seeder baseline snapshot."""
+    await session.execute(delete(FaceCredentialRecord))
+    await session.execute(delete(OperatorCheckInRecord))
+    await session.execute(delete(OperatorUserRecord))
     await session.execute(delete(TelemedicineAlertRecord))
     await session.execute(delete(TelemetryRecord))
     await session.execute(delete(GamificationProfileRecord))

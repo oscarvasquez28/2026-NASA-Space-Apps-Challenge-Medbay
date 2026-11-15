@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     upload_dir: str = Field(default="/tmp/uploads", alias="UPLOAD_DIR")
     gcs_bucket_name: str = Field(default="", alias="GCS_BUCKET_NAME")
 
+    # Local Facial Recognition (OpenCV YuNet + SFace)
+    face_model_dir: str = Field(default="/app/models/face", alias="FACE_MODEL_DIR")
+    face_match_threshold: float = Field(default=0.363, alias="FACE_MATCH_THRESHOLD")
+
 
     @property
     def cors_origins(self) -> list[str]:
