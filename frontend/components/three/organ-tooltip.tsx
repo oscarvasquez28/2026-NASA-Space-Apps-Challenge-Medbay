@@ -2,14 +2,16 @@
 
 /**
  * Floating tooltip for the selected organ — drill-down depth 2.
- * Status is inherited from the parent BodyZone; vitals come from the
- * curated organ atlas (data/organs.ts). Same overlay pipeline as
- * ZoneTooltip — the page swaps one for the other.
+ * Status and vitals are the organ's own: curated atlas readings with the
+ * member's live zone telemetry overlaid (organVitals / organStatus in
+ * data/organs.ts). Same overlay pipeline as ZoneTooltip — the page swaps
+ * one for the other.
  */
 
 import { MessageSquare, X } from "lucide-react";
 
 import { StatusChip } from "@/components/ui/primitives";
+import { organStatus, organVitals } from "@/data/organs";
 import { useAppStore } from "@/stores/app-store";
 import { useViewerStore } from "@/stores/viewer-store";
 import type { BodyZone, Organ, ViewMode } from "@/types/health";
@@ -26,6 +28,8 @@ export function OrganTooltip({
   const selectOrgan = useViewerStore((s) => s.selectOrgan);
   const focus = useViewerStore((s) => s.focus);
   const openChat = useAppStore((s) => s.openChat);
+  const vitals = organVitals(organ, zone);
+  const status = organStatus(organ, zone);
 
   return (
     <aside
@@ -38,7 +42,7 @@ export function OrganTooltip({
         <div className="tt-name" style={{ flex: 1 }}>
           {organ.name}
         </div>
-        <StatusChip level={zone.status} />
+        <StatusChip level={status} />
         <button
           aria-label="Close organ tooltip"
           onClick={() => {
@@ -52,12 +56,20 @@ export function OrganTooltip({
       </div>
 
       <dl>
-        {organ.vitals
-          .slice(0, viewMode === "technical" ? 4 : 2)
+        {[...vitals]
+          // off-nominal readings first so the reason for the glow is visible
+          .sort((a, b) => Number(b.status !== "NOMINAL") - Number(a.status !== "NOMINAL"))
+          .slice(0, viewMode === "technical" ? 5 : 3)
           .map((v) => (
             <div key={v.key} style={{ display: "contents" }}>
               <dt>{v.label}</dt>
-              <dd>
+              <dd
+                style={
+                  v.status !== "NOMINAL"
+                    ? { color: `var(--status-${v.status.toLowerCase()})` }
+                    : undefined
+                }
+              >
                 {v.value} {v.unit}
               </dd>
             </div>

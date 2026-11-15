@@ -20,6 +20,7 @@ import {
 } from "react";
 import { createStore, useStore, type StoreApi } from "zustand";
 
+import { zoneFraming } from "@/data/organs";
 import { MODEL_GROUP_OFFSET } from "@/types/health";
 import type { BodyZone, Organ, Vec3, ZoneId } from "@/types/health";
 
@@ -38,7 +39,7 @@ export interface ViewerState {
   /** Drill-down depth 2 — organ inside selectedZoneId. */
   selectedOrganId: string | null;
   focusPoint: Vec3 | null;
-  /** Camera dolly distance used by the focus rig (zone ≈1.15, organ ≈0.42). */
+  /** Camera dolly distance used by the focus rig (zone: fitted to its organs, organ: per-atlas 0.2–0.85). */
   focusDistance: number;
   /** bumped on every focus() — CameraRig animates to focusPoint. */
   focusRevision: number;
@@ -64,7 +65,9 @@ interface ViewerActions {
   /** Focus camera on a zone (or arbitrary point). */
   focus: (zone: Pick<BodyZone, "id" | "position"> | { id: null; position: Vec3 }) => void;
   /** Drill deeper: focus camera on an organ inside its parent zone. */
-  focusOrgan: (organ: Pick<Organ, "id" | "zoneId" | "position">) => void;
+  focusOrgan: (
+    organ: Pick<Organ, "id" | "zoneId" | "position" | "focusDistance">,
+  ) => void;
   setPreset: (p: CameraPreset) => void;
   reset: () => void;
   setExplode: (v: number) => void;
@@ -120,30 +123,37 @@ function createViewerStore(): ViewerStore {
     selectOrgan: (selectedOrganId) => set({ selectedOrganId }),
 
     focus: (zone) =>
-      set((s) => ({
-        selectedZoneId: zone.id ?? s.selectedZoneId,
-        selectedOrganId: null,
-        focusDistance: 1.5,
-        // zone.position is model-local — convert to world so the camera
-        // targets the anchor where the part actually renders.
-        focusPoint: (
-          zone.id === null
-            ? [...zone.position]
-            : [
-                zone.position[0] + MODEL_GROUP_OFFSET[0],
-                zone.position[1] + MODEL_GROUP_OFFSET[1],
-                zone.position[2] + MODEL_GROUP_OFFSET[2],
-              ]
-        ) as Vec3,
-        focusRevision: s.focusRevision + 1,
-        measureMode: false,
-      })),
+      set((s) => {
+        // Drilled zones frame their anatomy (organ extent), not the suit
+        // anchor; arbitrary points (id null) keep the caller's position.
+        const frame = zone.id === null ? null : zoneFraming(zone.id);
+        const local = frame ? frame.center : zone.position;
+        return {
+          selectedZoneId: zone.id ?? s.selectedZoneId,
+          selectedOrganId: null,
+          focusDistance: frame ? frame.distance : 1.5,
+          // positions are model-local — convert to world so the camera
+          // targets where the part actually renders.
+          focusPoint: (
+            zone.id === null
+              ? [...zone.position]
+              : [
+                  local[0] + MODEL_GROUP_OFFSET[0],
+                  local[1] + MODEL_GROUP_OFFSET[1],
+                  local[2] + MODEL_GROUP_OFFSET[2],
+                ]
+          ) as Vec3,
+          focusRevision: s.focusRevision + 1,
+          measureMode: false,
+        };
+      }),
 
     focusOrgan: (organ) =>
       set((s) => ({
         selectedZoneId: organ.zoneId,
         selectedOrganId: organ.id,
-        focusDistance: 0.6,
+        // per-organ framing: an eye needs ~0.2u, a femur ~0.85u
+        focusDistance: organ.focusDistance ?? 0.6,
         focusPoint: [
           organ.position[0] + MODEL_GROUP_OFFSET[0],
           organ.position[1] + MODEL_GROUP_OFFSET[1],

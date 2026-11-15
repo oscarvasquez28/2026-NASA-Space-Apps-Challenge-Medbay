@@ -77,7 +77,7 @@ function CameraRig() {
   const autoRotatePref = useAppStore((s) => s.autoRotate);
 
   // Focus animation — every focus()/focusOrgan() bumps focusRevision.
-  // focusDistance scales the approach: zone ≈1.5u, organ ≈0.6u.
+  // focusDistance scales the approach: zone 1.5u, organ per-atlas 0.2–0.85u.
   useEffect(() => {
     const c = controlsRef.current;
     if (!c || !focusPoint) return;
@@ -160,7 +160,7 @@ function CameraRig() {
     <CameraControls
       ref={controlsRef}
       makeDefault
-      minDistance={0.28}
+      minDistance={0.15}
       maxDistance={8}
       smoothTime={0.28}
       draggingSmoothTime={0.08}

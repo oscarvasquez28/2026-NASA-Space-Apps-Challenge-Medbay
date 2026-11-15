@@ -34,7 +34,7 @@ function PreviewModel({ zones, spin }: { zones: BodyZone[]; spin: boolean }) {
   });
   return (
     <group ref={ref} position={[0, 0.1, 0]}>
-      <AstronautModel zones={zones} scale={0.9} />
+      <AstronautModel zones={zones} scale={0.9} anatomy={false} />
     </group>
   );
 }

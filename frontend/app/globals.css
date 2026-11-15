@@ -650,6 +650,28 @@ h1, h2, h3, h4, p {
   border-radius: 2px;
   padding: 2px 5px;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* off-nominal organ marker inside the 3D label chip */
+.organ-label-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  animation: organ-alarm 1.1s ease-in-out infinite;
+}
+.organ-label-dot.caution { background: var(--status-caution); }
+.organ-label-dot.urgent { background: var(--status-urgent); }
+.organ-label-dot.critical { background: var(--status-critical); }
+
+@keyframes organ-alarm {
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .organ-label-dot { animation: none; }
 }
 
 .viewer-toolbar {

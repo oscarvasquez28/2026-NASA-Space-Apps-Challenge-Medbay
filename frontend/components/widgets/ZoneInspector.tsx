@@ -15,7 +15,7 @@ import {
   Eyebrow,
   StatusDot,
 } from "@/components/ui/primitives";
-import { organsOf } from "@/data/organs";
+import { organsOf, organStatus } from "@/data/organs";
 import { useAppStore } from "@/stores/app-store";
 import { useViewerStore } from "@/stores/viewer-store";
 import type { CrewMember } from "@/types/health";
@@ -241,7 +241,7 @@ export function ZoneInspector({ member }: { member: CrewMember }) {
                       ├
                     </span>
                     <span className="zl">{o.name}</span>
-                    <StatusDot level={selZone.status} />
+                    <StatusDot level={organStatus(o, selZone)} />
                   </button>
                 ))}
               </div>

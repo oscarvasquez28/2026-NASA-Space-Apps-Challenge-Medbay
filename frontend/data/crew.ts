@@ -22,12 +22,13 @@ function vital(
 
 function zone(partial: Omit<BodyZone, "partIds"> & { id: ZoneId }): BodyZone {
   const partIds: Record<ZoneId, string[]> = {
-    head: ["helmet", "head"],
+    head: ["helmet", "head", "visor", "collar"],
     chest: ["chest"],
     spine: ["spine"],
     gut: ["abdomen"],
     limbs: ["arm_l", "arm_r", "leg_l", "leg_r"],
-    skin: ["visor", "plss", "collar"],
+    // full-body skin layer under the suit + the PLSS (suit pressure loop)
+    skin: ["skin_body", "plss"],
   };
   return { ...partial, partIds: partIds[partial.id] };
 }

@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * Procedural EVA-suit astronaut — capsule/sphere primitives only.
- * Every mesh belongs to a `partId`; each partId belongs to a BodyZone.
+ * Procedural astronaut in three layers: EVA suit → full-body skin → organs.
+ * Every suit mesh belongs to a `partId`; each partId belongs to a BodyZone.
  * Selection, status tinting, explode offsets, section clipping, wireframe
- * and edges all flow from the per-instance viewer store.
+ * and edges all flow from the per-instance viewer store. Layers never
+ * pop: every mesh fades/slides towards a damped target (useFade), and
+ * hidden meshes drop out of raycasting so they can't steal clicks.
  */
 
 import { Edges, Html } from "@react-three/drei";
@@ -12,14 +14,22 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useRef,
+  useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import * as THREE from "three";
 
+import { useAppStore } from "@/stores/app-store";
 import { useViewerStore, type OverlayMode } from "@/stores/viewer-store";
-import { organsOf } from "@/data/organs";
+import { ORGANS, organsOf, organStatus } from "@/data/organs";
+import { armTransform, HIP_X } from "@/data/suit-rig";
+import { organGeometry, ribcageGeometry, warmOrganCache } from "./organ-geometry";
+import { SKIN_SEGMENT_PART, SKIN_SEGMENTS, skinGeometry, type SkinSegment } from "./skin-geometry";
+import { suitGeometry } from "./suit-geometry";
 import { MODEL_GROUP_OFFSET } from "@/types/health";
 import type {
   BodyZone,
@@ -31,17 +41,46 @@ import type {
 
 /* ------------------------- materials / colors ------------------------- */
 
-const SUIT_BASE = "#9ea8b5";
-const HELMET = "#b9c2cf";
-const INNER = "#3d434d";
-const VISOR = "#1d232e";
+const SUIT_WHITE = "#e2e4df";
 const ACCENT_EMISSIVE = "#31456b";
 
 const STATUS_TINT: Record<TriageLevel, string> = {
-  NOMINAL: SUIT_BASE,
-  CAUTION: "#b3a58a",
-  URGENT: "#bb8d72",
-  CRITICAL: "#b47c7c",
+  NOMINAL: SUIT_WHITE,
+  CAUTION: "#e2cf9c",
+  URGENT: "#e2aa86",
+  CRITICAL: "#de9090",
+};
+
+/** DCM display glow follows the chest zone's triage level. */
+const SCREEN_GLOW: Record<TriageLevel, string> = {
+  NOMINAL: "#7f9fe8",
+  CAUTION: "#e0c070",
+  URGENT: "#e09060",
+  CRITICAL: "#ff6a60",
+};
+
+/** Material finishes (meshPhysicalMaterial presets, MECHAVIS §6.2). */
+type Finish = "fabric" | "hard" | "metal" | "visor" | "rubber";
+
+const FINISH: Record<
+  Finish,
+  {
+    roughness: number;
+    metalness: number;
+    clearcoat?: number;
+    clearcoatRoughness?: number;
+    sheen?: number;
+    sheenRoughness?: number;
+    envMapIntensity?: number;
+  }
+> = {
+  fabric: { roughness: 0.84, metalness: 0, sheen: 0.65, sheenRoughness: 0.7 },
+  hard: { roughness: 0.4, metalness: 0.02, clearcoat: 0.55, clearcoatRoughness: 0.3 },
+  metal: { roughness: 0.3, metalness: 0.85, clearcoat: 0.3, clearcoatRoughness: 0.25 },
+  // not fully metallic: a pure mirror only shows the dark studio and reads
+  // black — keep some gold albedo + a strong clearcoat glint
+  visor: { roughness: 0.18, metalness: 0.62, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 2.2 },
+  rubber: { roughness: 0.92, metalness: 0 },
 };
 
 /** Conceptual overlay palettes (provider-owned semantics, per-zone tint). */
@@ -92,11 +131,14 @@ const EXPLODE_OFFSET: Record<string, Vec3> = {
   abdomen: [0, -0.06, 0.06],
   spine: [0, 0, -0.22],
   plss: [0, 0, -0.5],
-  arm_l: [-0.38, 0.04, 0],
-  arm_r: [0.38, 0.04, 0],
-  leg_l: [-0.12, -0.28, 0],
-  leg_r: [0.12, -0.28, 0],
+  arm_l: [0.38, 0.04, 0],
+  arm_r: [-0.38, 0.04, 0],
+  leg_l: [0.12, -0.28, 0],
+  leg_r: [-0.12, -0.28, 0],
 };
+
+/** How far non-selected parts slide out while they fade during a drill. */
+const AWAY = 0.45;
 
 interface PartSpec {
   partId: string;
@@ -106,8 +148,9 @@ interface PartSpec {
 export const PART_ZONE: Record<string, ZoneId> = {
   helmet: "head",
   head: "head",
-  visor: "skin",
-  collar: "skin",
+  visor: "head",
+  collar: "head",
+  skin_body: "skin",
   chest: "chest",
   abdomen: "gut",
   spine: "spine",
@@ -118,9 +161,104 @@ export const PART_ZONE: Record<string, ZoneId> = {
   leg_r: "limbs",
 };
 
+/** Suit part an organ rides with when the model explodes. */
+function organPart(o: Organ): string {
+  const side = o.side === -1 ? "_r" : "_l";
+  switch (o.zoneId) {
+    case "head":
+      return "head";
+    case "chest":
+      return "chest";
+    case "spine":
+      return "spine";
+    case "gut":
+      return "abdomen";
+    case "limbs":
+      return (o.shape === "biceps" ? "arm" : "leg") + side;
+    default:
+      return o.id === "dermis_arm" ? "arm_l" : "abdomen";
+  }
+}
+
 const PartContext = createContext<PartSpec | null>(null);
 
-/* ------------------------------ geometry ------------------------------ */
+/* --------------------------- shared behaviour --------------------------- */
+
+const noRaycast = () => null;
+const meshRaycast = THREE.Mesh.prototype.raycast;
+
+/** The pointer ray also hits an organ / beacon behind this surface — suit
+ * and skin step aside (no stopPropagation) so the organ gets the click. */
+function hitsOrgan(e: ThreeEvent<MouseEvent>) {
+  return e.intersections.some((i) => i.object.userData.organId != null);
+}
+
+/** Damped 0..1 presence applied to a material every frame: fades opacity,
+ * flips transparency / depthWrite as needed, hides the mesh at 0. */
+function useFade(
+  target: number,
+  matRef: RefObject<THREE.Material | null>,
+  meshRef: RefObject<THREE.Object3D | null>,
+  rate = 6,
+) {
+  const reduceMotion = useAppStore((s) => s.reduceMotion);
+  const v = useRef(target);
+  useFrame((_, dt) => {
+    let next = reduceMotion ? target : THREE.MathUtils.damp(v.current, target, rate, dt);
+    if (Math.abs(next - target) < 0.003) next = target;
+    v.current = next;
+    const m = matRef.current;
+    if (m) {
+      m.opacity = next;
+      const transparent = next < 0.995;
+      if (m.transparent !== transparent) {
+        m.transparent = transparent;
+        m.needsUpdate = true;
+      }
+      m.depthWrite = next > 0.6;
+    }
+    const mesh = meshRef.current;
+    if (mesh) mesh.visible = next > 0.004;
+  });
+  return v;
+}
+
+/** Damp a group towards `base + offset(part) · k` (explode / slide-away). */
+function useExplodeFollow(
+  ref: RefObject<THREE.Group | null>,
+  base: Vec3,
+  partId: string,
+  k: number,
+  rate = 4.5,
+) {
+  const reduceMotion = useAppStore((s) => s.reduceMotion);
+  useFrame((_, dt) => {
+    const g = ref.current;
+    if (!g) return;
+    const [ox, oy, oz] = EXPLODE_OFFSET[partId] ?? [0, 0, 0];
+    const tx = base[0] + ox * k;
+    const ty = base[1] + oy * k;
+    const tz = base[2] + oz * k;
+    if (reduceMotion) {
+      g.position.set(tx, ty, tz);
+      return;
+    }
+    g.position.x = THREE.MathUtils.damp(g.position.x, tx, rate, dt);
+    g.position.y = THREE.MathUtils.damp(g.position.y, ty, rate, dt);
+    g.position.z = THREE.MathUtils.damp(g.position.z, tz, rate, dt);
+  });
+}
+
+/** Drill state every layer derives its visibility from. */
+function useDrill() {
+  const selectedZoneId = useViewerStore((s) => s.selectedZoneId);
+  const selectedOrganId = useViewerStore((s) => s.selectedOrganId);
+  const wireframe = useViewerStore((s) => s.wireframe);
+  const explode = useViewerStore((s) => s.explode);
+  return { selectedZoneId, selectedOrganId, wireframe, explode };
+}
+
+/* ------------------------------ suit layer ------------------------------ */
 
 interface BodyPartProps extends PartSpec {
   position?: Vec3;
@@ -128,20 +266,14 @@ interface BodyPartProps extends PartSpec {
   children: ReactNode;
 }
 
-/** Group that animates explode offset for a partId. */
+/** Suit part group — explodes along its offset, and slides out a little
+ * while its shell fades when another zone is drilled. */
 function BodyPart({ partId, zoneId, position, rotation, children }: BodyPartProps) {
   const ref = useRef<THREE.Group>(null);
-  const explode = useViewerStore((s) => s.explode);
-
-  useFrame((_, delta) => {
-    const g = ref.current;
-    if (!g) return;
-    const [ox, oy, oz] = EXPLODE_OFFSET[partId] ?? [0, 0, 0];
-    const [bx, by, bz] = position ?? [0, 0, 0];
-    g.position.x = THREE.MathUtils.damp(g.position.x, bx + ox * explode, 8, delta);
-    g.position.y = THREE.MathUtils.damp(g.position.y, by + oy * explode, 8, delta);
-    g.position.z = THREE.MathUtils.damp(g.position.z, bz + oz * explode, 8, delta);
-  });
+  const { selectedZoneId, selectedOrganId, explode } = useDrill();
+  const zone = PART_ZONE[partId];
+  const away = selectedOrganId != null || (selectedZoneId != null && selectedZoneId !== zone);
+  useExplodeFollow(ref, position ?? [0, 0, 0], partId, explode + (away ? AWAY : 0));
 
   return (
     <group ref={ref} position={position} rotation={rotation}>
@@ -152,22 +284,25 @@ function BodyPart({ partId, zoneId, position, rotation, children }: BodyPartProp
   );
 }
 
+/** Suit opacity in the wireframe overview — lines stay readable while the
+ * organs inside show through. */
+const WIRE_SUIT_OPACITY = 0.14;
+const GHOST_SHELL_OPACITY = 0.14;
+
 interface SolidProps {
   zone: BodyZone | undefined;
+  geometry: THREE.BufferGeometry;
   baseColor: string;
-  roughness?: number;
-  metalness?: number;
-  transparent?: boolean;
-  opacity?: number;
-  children: ReactNode;
+  finish?: Finish;
+  /** Status/overlay tint the shell (false for true-colour pieces). */
+  tint?: boolean;
   onMeasure?: (p: Vec3) => void;
 }
 
-/** Single mesh inside a PartContext — selectable + status/overlay tinted. */
-function Solid({ zone, baseColor, roughness = 0.72, metalness = 0.06, transparent, opacity, children, onMeasure }: SolidProps) {
+/** Selectable zone shell inside a PartContext — status/overlay tinted. */
+function Solid({ zone, geometry, baseColor, finish = "fabric", tint: tintable = true, onMeasure }: SolidProps) {
   const part = useContext(PartContext);
-  const selectedZoneId = useViewerStore((s) => s.selectedZoneId);
-  const wireframe = useViewerStore((s) => s.wireframe);
+  const { selectedZoneId, selectedOrganId, wireframe } = useDrill();
   const edges = useViewerStore((s) => s.edges);
   const overlay = useViewerStore((s) => s.overlay);
   const measureMode = useViewerStore((s) => s.measureMode);
@@ -176,21 +311,23 @@ function Solid({ zone, baseColor, roughness = 0.72, metalness = 0.06, transparen
 
   const isZonePart = part != null && zone != null && zone.partIds.includes(part.partId);
   const selected = isZonePart && selectedZoneId === zone?.id;
-  const selectedOrganId = useViewerStore((s) => s.selectedOrganId);
-  const tint = overlayTint(zone, overlay);
-  const color = tint ?? (isZonePart ? STATUS_TINT[zone.status] : baseColor);
+  const tint = tintable ? overlayTint(zone, overlay) : null;
+  const color = tint ?? (isZonePart && tintable ? STATUS_TINT[zone.status] : baseColor);
   // Drill-down isolation:
-  //  depth 0 — full suit opaque.
-  //  depth 1 (zone selected) — other zones hidden; selected shell ghosts.
-  //  depth 2 (organ selected) — every suit shell disappears entirely.
+  //  depth 0 — full suit (translucent wire in the wireframe overview).
+  //  depth 1 (zone selected) — other zones fade out; selected shell ghosts.
+  //  depth 2 (organ selected) — every suit shell fades out.
   const drilled = selectedZoneId != null;
   const ghosted = drilled && selected && selectedOrganId == null;
-  // Unmount hidden parts — visible={false} still intercepts raycast hits,
-  // so invisible shells would steal clicks meant for organs/other zones.
   const hidden = selectedOrganId != null || (drilled && !selected);
+  const target = hidden ? 0 : ghosted ? GHOST_SHELL_OPACITY : wireframe ? WIRE_SUIT_OPACITY : 1;
+
+  const matRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  useFade(target, matRef, meshRef);
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
-    if (ghosted) return; // transparent shell — let clicks fall through to organs
+    if (hitsOrgan(e)) return; // organ / beacon behind the shell takes it
     e.stopPropagation();
     if (e.delta > 4) return; // drag, not click
     if (measureMode) {
@@ -202,69 +339,73 @@ function Solid({ zone, baseColor, roughness = 0.72, metalness = 0.06, transparen
     focus(zone);
   };
 
-  if (hidden) return null;
-
   return (
-    <mesh castShadow receiveShadow onClick={onClick}>
-      {children}
-      <meshStandardMaterial
-        key={ghosted ? "ghost" : "solid"}
+    <mesh
+      ref={meshRef}
+      geometry={geometry}
+      castShadow={target === 1}
+      receiveShadow
+      onClick={onClick}
+      raycast={hidden || ghosted ? noRaycast : meshRaycast}
+    >
+      <meshPhysicalMaterial
+        ref={matRef}
+        {...FINISH[finish]}
+        vertexColors={geometry.hasAttribute("color")}
         color={color}
-        roughness={roughness}
-        metalness={metalness}
-        transparent={transparent || ghosted}
-        opacity={ghosted ? 0.15 : (opacity ?? 1)}
-        depthWrite={!ghosted}
+        sheenColor="#ffffff"
         wireframe={wireframe}
         emissive={selected ? ACCENT_EMISSIVE : "#000000"}
         emissiveIntensity={selected ? 1 : 0}
       />
-      {(edges || selected) && (
-        <Edges color={selected ? "#8badfa" : "#3a4048"} />
+      {/* no edges on the ghosted shell — its segment lines read as a cage
+          in front of the anatomy */}
+      {(edges || selected) && !ghosted && !hidden && (
+        <Edges threshold={32} color={selected ? "#8badfa" : "#3a4048"} />
       )}
     </mesh>
   );
 }
 
 /**
- * Decorative accessory mesh — delegates clicks to its zone's selection so
- * chestpack/belt/antenna/gloves/boots don't swallow pointer events.
+ * Detail mesh (bearings, gloves, boots, DCM, hoses…) — true colours, and
+ * clicks delegate to its zone's selection so details never swallow
+ * pointer events. Details fade out as soon as anything is drilled.
  */
 interface AuxProps {
   zone: BodyZone | undefined;
-  baseColor: string;
-  roughness?: number;
-  metalness?: number;
-  position?: Vec3;
-  rotation?: Vec3;
-  children: ReactNode;
+  geometry: THREE.BufferGeometry;
+  baseColor?: string;
+  finish?: Finish;
+  emissive?: string;
+  emissiveIntensity?: number;
   onMeasure?: (p: Vec3) => void;
 }
 
 function Aux({
   zone,
-  baseColor,
-  roughness = 0.6,
-  metalness = 0.1,
-  position,
-  rotation,
-  children,
+  geometry,
+  baseColor = "#ffffff",
+  finish = "hard",
+  emissive,
+  emissiveIntensity = 1,
   onMeasure,
 }: AuxProps) {
   const part = useContext(PartContext);
+  const { selectedZoneId, wireframe } = useDrill();
   const select = useViewerStore((s) => s.select);
   const focus = useViewerStore((s) => s.focus);
   const measureMode = useViewerStore((s) => s.measureMode);
-  const selectedZoneId = useViewerStore((s) => s.selectedZoneId);
-  const selectedOrganId = useViewerStore((s) => s.selectedOrganId);
   const isZonePart = part != null && zone != null && zone.partIds.includes(part.partId);
-  const drilled = selectedZoneId != null;
-  const selected = isZonePart && selectedZoneId === zone?.id;
-  const ghosted = drilled && selected && selectedOrganId == null;
-  const hidden = selectedOrganId != null || (drilled && !selected);
+  const hidden = selectedZoneId != null;
+  const target = hidden ? 0 : wireframe ? WIRE_SUIT_OPACITY : 1;
+
+  const matRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  useFade(target, matRef, meshRef);
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
-    if (ghosted) return; // let clicks fall through to organs
+    if (hitsOrgan(e)) return;
     e.stopPropagation();
     if (e.delta > 4) return;
     if (measureMode) {
@@ -276,82 +417,262 @@ function Aux({
     focus(zone);
   };
 
-  if (hidden) return null;
-
   return (
     <mesh
-      castShadow
-      position={position}
-      rotation={rotation}
+      ref={meshRef}
+      geometry={geometry}
+      castShadow={target === 1}
       onClick={onClick}
+      raycast={hidden ? noRaycast : meshRaycast}
     >
-      {children}
-      <meshStandardMaterial
-        key={ghosted ? "ghost" : "solid"}
+      <meshPhysicalMaterial
+        ref={matRef}
+        {...FINISH[finish]}
+        vertexColors={geometry.hasAttribute("color")}
         color={baseColor}
-        roughness={roughness}
-        metalness={metalness}
-        transparent={ghosted}
-        opacity={ghosted ? 0.1 : 1}
-        depthWrite={!ghosted}
+        wireframe={wireframe}
+        emissive={emissive ?? "#000000"}
+        emissiveIntensity={emissive ? emissiveIntensity : 0}
       />
     </mesh>
   );
 }
 
+/* ------------------------------ skin layer ------------------------------ */
+
+/** Natural tone when nominal; matte, opaque red when the skin itself is
+ * the problem (pressure loss, radiation, burns…). */
+const SKIN_TONE: Record<TriageLevel, string> = {
+  NOMINAL: "#d6a690",
+  CAUTION: "#c9826a",
+  URGENT: "#a8463c",
+  CRITICAL: "#8f302b",
+};
+const SKIN_MEMBRANE_OPACITY = 0.16;
+
+function SkinMesh({
+  segment,
+  zone,
+  onMeasure,
+}: {
+  segment: SkinSegment;
+  zone: BodyZone | undefined;
+  onMeasure?: (p: Vec3) => void;
+}) {
+  const { selectedZoneId, selectedOrganId, wireframe, explode } = useDrill();
+  const select = useViewerStore((s) => s.select);
+  const focus = useViewerStore((s) => s.focus);
+  const measureMode = useViewerStore((s) => s.measureMode);
+  const geometry = useMemo(() => skinGeometry(segment), [segment]);
+  const status = zone?.status ?? "NOMINAL";
+  const abnormal = status !== "NOMINAL";
+
+  // suit (outer) → skin → organs: skin is the whole body when the skin zone
+  // is drilled, a faint membrane around any other drilled zone, and gone in
+  // the wireframe overview (suit + organs only) or at organ depth.
+  const target =
+    wireframe || selectedOrganId != null
+      ? 0
+      : selectedZoneId === "skin"
+        ? 1
+        : selectedZoneId != null
+          ? abnormal ? SKIN_MEMBRANE_OPACITY * 1.8 : SKIN_MEMBRANE_OPACITY
+          : 0;
+
+  const groupRef = useRef<THREE.Group>(null);
+  const matRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  useFade(target, matRef, meshRef, 5);
+  useExplodeFollow(groupRef, [0, 0, 0], SKIN_SEGMENT_PART[segment], explode);
+
+  const onClick = (e: ThreeEvent<MouseEvent>) => {
+    if (hitsOrgan(e)) return;
+    e.stopPropagation();
+    if (e.delta > 4 || !zone) return;
+    if (measureMode) {
+      onMeasure?.([e.point.x, e.point.y, e.point.z]);
+      return;
+    }
+    if (selectedZoneId === "skin") return;
+    select("skin");
+    focus(zone);
+  };
+
+  return (
+    <group ref={groupRef}>
+      <mesh
+        ref={meshRef}
+        geometry={geometry}
+        castShadow={target === 1}
+        receiveShadow
+        onClick={onClick}
+        raycast={target > 0 ? meshRaycast : noRaycast}
+      >
+        <meshPhysicalMaterial
+          ref={matRef}
+          vertexColors
+          color={SKIN_TONE[status]}
+          roughness={abnormal ? 0.9 : 0.6}
+          metalness={0}
+          sheen={abnormal ? 0 : 0.4}
+          sheenRoughness={0.6}
+          sheenColor="#ffd8c8"
+          clearcoat={abnormal ? 0 : 0.12}
+          clearcoatRoughness={0.6}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+function SkinLayer({ zones, onMeasure }: { zones: BodyZone[]; onMeasure?: (p: Vec3) => void }) {
+  const zone = zones.find((z) => z.id === "skin");
+  return (
+    <>
+      {SKIN_SEGMENTS.map((s) => (
+        <SkinMesh key={s} segment={s} zone={zone} onMeasure={onMeasure} />
+      ))}
+    </>
+  );
+}
+
 /* --------------------------- organ drill layer --------------------------- */
 
-/** Muted tissue palette per organ id (lab aesthetic, not clinical). */
-const ORGAN_COLOR: Record<string, string> = {
-  brain: "#8d8396",
-  eye_l: "#9fb0c4",
-  eye_r: "#9fb0c4",
-  heart: "#a05f5f",
-  lung_l: "#7d8ba0",
-  lung_r: "#7d8ba0",
-  vert_c: "#9aa3ad",
-  vert_t: "#9aa3ad",
-  vert_l: "#9aa3ad",
-  bicep_l: "#9a6a62",
-  bicep_r: "#9a6a62",
-  femur_l: "#b0b6bd",
-  femur_r: "#b0b6bd",
-  stomach: "#9c8a6a",
-  liver: "#8a6a5d",
-  gut_loop: "#93766e",
-  dermis: "#a08a80",
-  dermis_arm: "#a08a80",
+/** Triage-status rim glow (fresnel) — the organ's silhouette reads its
+ * own status at a glance; selection pushes it to the accent. */
+const ORGAN_RIM: Record<TriageLevel, string> = {
+  NOMINAL: "#6f8fd0",
+  CAUTION: "#e0bf6a",
+  URGENT: "#f08a4f",
+  CRITICAL: "#ff4f45",
 };
+const RIM_SELECTED = "#9db8ff";
 
-/** Status glow the organ layer breathes with (parent-zone triage level). */
-const ORGAN_EMISSIVE: Record<TriageLevel, string> = {
-  NOMINAL: "#243044",
-  CAUTION: "#5d4d24",
-  URGENT: "#6e3a24",
-  CRITICAL: "#6e2424",
-};
+const RIM_UNIFORMS = "uniform vec3 uRimColor;\nuniform float uRimStrength;";
+const RIM_CHUNK = `
+  {
+    float rimF = 1.0 - clamp(abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0);
+    totalEmissiveRadiance += uRimColor * pow(rimF, 2.6) * uRimStrength;
+  }`;
 
-/** Stylized organs render ~30% larger than anatomy for readability. */
-const ORGAN_SCALE = 1.3;
+/** Organs with ≤ this many siblings keep their labels pinned; denser zones
+ * (gut) show a label on hover only, so the stage doesn't drown in chips. */
+const PINNED_LABEL_MAX = 4;
 
-function OrganMesh({ organ, status }: { organ: Organ; status: TriageLevel }) {
-  const selectedOrganId = useViewerStore((s) => s.selectedOrganId);
+function organVital(organ: Organ, key: string, fallback: number) {
+  return organ.vitals.find((v) => v.key === key)?.value ?? fallback;
+}
+
+/** Lub-dub contraction envelope, 0..1, for a beat phase f ∈ [0,1). */
+function beat(f: number) {
+  return Math.exp(-(((f - 0.08) / 0.045) ** 2)) + 0.6 * Math.exp(-(((f - 0.3) / 0.05) ** 2));
+}
+
+/** Alarm pulse 0..1 — faster as severity rises. */
+function alarm(t: number, status: TriageLevel) {
+  const speed = status === "CRITICAL" ? 6 : status === "URGENT" ? 4.5 : 3;
+  return 0.5 + 0.5 * Math.sin(t * speed);
+}
+
+function useCursor(hovered: boolean) {
+  useEffect(() => {
+    if (!hovered) return;
+    document.body.style.cursor = "pointer";
+    return () => {
+      document.body.style.cursor = "";
+    };
+  }, [hovered]);
+}
+
+function OrganMesh({
+  organ,
+  status,
+  present,
+  pinnedLabel,
+}: {
+  organ: Organ;
+  status: TriageLevel;
+  present: boolean;
+  pinnedLabel: boolean;
+}) {
+  const { selectedOrganId, explode } = useDrill();
   const focusOrgan = useViewerStore((s) => s.focusOrgan);
-  const wireframe = useViewerStore((s) => s.wireframe);
   const edges = useViewerStore((s) => s.edges);
   const measureMode = useViewerStore((s) => s.measureMode);
+  const reduceMotion = useAppStore((s) => s.reduceMotion);
   const selected = selectedOrganId === organ.id;
+  const abnormal = status !== "NOMINAL";
+  const [hovered, setHovered] = useState(false);
+  useCursor(hovered && present);
 
-  const matRef = useRef<THREE.MeshStandardMaterial>(null);
+  const geometry = useMemo(
+    () => organGeometry(organ.shape, organ.side ?? 1),
+    [organ.shape, organ.side],
+  );
+  const labelY = (geometry.boundingBox?.max.y ?? 0.05) + 0.014;
 
-  // Slow "vital" pulse — the heart beats faster, everything breathes.
+  const groupRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  const haloRef = useRef<THREE.Mesh>(null);
+  const haloMat = useRef<THREE.MeshBasicMaterial>(null);
+  const vis = useFade(present ? 1 : 0, matRef, meshRef, 5);
+  useExplodeFollow(groupRef, organ.position, organPart(organ), explode);
+
+  const rim = useRef({
+    uRimColor: { value: new THREE.Color(ORGAN_RIM.NOMINAL) },
+    uRimStrength: { value: 0.5 },
+  });
+
+  const onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, rim.current);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\n${RIM_UNIFORMS}`)
+      .replace(
+        "#include <lights_physical_fragment>",
+        `#include <lights_physical_fragment>${RIM_CHUNK}`,
+      );
+  };
+
+  const hr = organVital(organ, "heart_rate_bpm", 70);
+  const rr = organVital(organ, "resp_rate", 13);
+
   useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const v = vis.current;
+    const pulse = reduceMotion ? 0.6 : alarm(t, status);
+
+    const u = rim.current;
+    u.uRimColor.value.set(selected && !abnormal ? RIM_SELECTED : ORGAN_RIM[status]);
+    const rimTarget = abnormal ? 0.9 + 0.8 * pulse : selected ? 1.25 : hovered ? 1.0 : 0.55;
+    u.uRimStrength.value = rimTarget * v;
+
+    // abnormal organs glow from the inside — "click me" at a glance
+    // softer once the organ is isolated so its anatomy stays readable
+    const glow = selected ? 0.45 : 1;
     const m = matRef.current;
-    if (!m) return;
-    const speed = organ.id === "heart" ? 6 : 2;
-    m.emissiveIntensity =
-      (selected ? 1.1 : 0.7) +
-      Math.sin(clock.elapsedTime * speed) * (selected ? 0.25 : 0.15);
+    if (m) m.emissiveIntensity = abnormal ? (0.25 + 0.55 * pulse) * v * glow : 0;
+    const h = haloMat.current;
+    if (h) h.opacity = abnormal ? (0.1 + 0.22 * pulse) * v * glow : 0;
+    if (haloRef.current) haloRef.current.visible = abnormal && v > 0.01;
+
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const grow = 0.9 + 0.1 * v; // settle in while fading
+    if (reduceMotion || !organ.anim) {
+      mesh.scale.setScalar(grow);
+      return;
+    }
+    if (organ.anim === "heartbeat") {
+      const k = 1 - 0.045 * beat(((t * hr) / 60) % 1);
+      mesh.scale.set(k * grow, (k * 0.985 + 0.015) * grow, k * grow);
+    } else if (organ.anim === "breath") {
+      const b = 0.5 - 0.5 * Math.cos((t * rr * Math.PI * 2) / 60);
+      mesh.scale.set((1 + 0.022 * b) * grow, (1 + 0.016 * b) * grow, (1 + 0.026 * b) * grow);
+    } else {
+      const p = Math.sin(t * 1.4) * 0.006;
+      mesh.scale.set((1 + p) * grow, (1 - p * 0.5) * grow, (1 + p) * grow);
+    }
   });
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
@@ -360,77 +681,243 @@ function OrganMesh({ organ, status }: { organ: Organ; status: TriageLevel }) {
     focusOrgan(organ);
   };
 
-  const { kind, args } = organ.geo;
-  const scale = organ.scale
-    ? (organ.scale.map((v) => v * ORGAN_SCALE) as Vec3)
-    : ORGAN_SCALE;
+  const showLabel = present && !selected && (pinnedLabel || hovered);
+
   return (
-    <mesh
-      castShadow
-      position={organ.position}
-      rotation={organ.rotation}
-      scale={scale}
-      onClick={onClick}
-    >
-      {kind === "sphere" && (
-        <sphereGeometry args={[args[0], args[1] ?? 16, args[2] ?? 12]} />
-      )}
-      {kind === "capsule" && (
-        <capsuleGeometry
-          args={[args[0], args[1], args[2] ?? 4, args[3] ?? 10]}
+    <group ref={groupRef} position={organ.position} rotation={organ.rotation}>
+      <mesh
+        ref={meshRef}
+        geometry={geometry}
+        userData={{ organId: organ.id }}
+        castShadow={present}
+        receiveShadow
+        onClick={onClick}
+        raycast={present ? meshRaycast : noRaycast}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHovered(true);
+        }}
+        onPointerOut={() => setHovered(false)}
+      >
+        <meshPhysicalMaterial
+          ref={matRef}
+          vertexColors
+          color="#ffffff"
+          roughness={0.46}
+          metalness={0}
+          clearcoat={0.55}
+          clearcoatRoughness={0.38}
+          sheen={0.35}
+          sheenRoughness={0.6}
+          sheenColor="#ffd9cf"
+          emissive={ORGAN_RIM[status]}
+          emissiveIntensity={0}
+          onBeforeCompile={onBeforeCompile}
+          customProgramCacheKey={() => "organ-rim-v1"}
         />
-      )}
-      {kind === "cylinder" && (
-        <cylinderGeometry
-          args={[args[0], args[1] ?? args[0], args[2] ?? 0.05, args[3] ?? 12]}
-        />
-      )}
-      {kind === "torus" && (
-        <torusGeometry
-          args={[args[0], args[1] ?? 0.015, args[2] ?? 8, args[3] ?? 20]}
-        />
-      )}
-      <meshStandardMaterial
-        ref={matRef}
-        color={ORGAN_COLOR[organ.id] ?? "#8f7f82"}
-        roughness={0.5}
-        metalness={0.05}
-        wireframe={wireframe}
-        emissive={selected ? "#8badfa" : ORGAN_EMISSIVE[status]}
-        emissiveIntensity={0.7}
-      />
-      {(edges || selected) && (
-        <Edges color={selected ? "#8badfa" : "#454c56"} />
-      )}
-      {/* discovery label at zone level only — hidden once the organ is
-          focused (tooltip + breadcrumb already name it, and an Html label
-          would blow up at close focus distance) */}
-      {!selected && (
+        {edges && present && <Edges threshold={35} color="#454c56" />}
+        {/* glow shell hugging the organ's own silhouette (inverted hull),
+            child of the mesh so it beats/breathes with it */}
+        {abnormal && (
+          <mesh ref={haloRef} geometry={geometry} scale={1.07} raycast={noRaycast} renderOrder={3}>
+            <meshBasicMaterial
+              ref={haloMat}
+              color={ORGAN_RIM[status]}
+              transparent
+              opacity={0}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              side={THREE.BackSide}
+            />
+          </mesh>
+        )}
+      </mesh>
+      {/* label: pinned in sparse zones, hover-only in dense ones; hidden once
+          focused (tooltip + breadcrumb name it). Fixed CSS size — no
+          distanceFactor, so it never balloons at close focus. */}
+      {showLabel && (
         <Html
-          position={[0, 0.12, 0]}
+          position={[0, labelY, 0]}
           center
           wrapperClass="organ-label"
           style={{ pointerEvents: "none" }}
         >
-          <div className="organ-label-chip">{organ.name}</div>
+          <div className="organ-label-chip">
+            {abnormal && <span className={`organ-label-dot ${status.toLowerCase()}`} />}
+            {organ.name}
+          </div>
         </Html>
       )}
-    </mesh>
+    </group>
   );
 }
 
-/** Organs of the selected zone — hidden while the suit explodes; once an
- * organ is focused its siblings disappear (isolated organ view). */
+/**
+ * Off-nominal organ seen from OUTSIDE the suit (no zone drilled): a pulsing
+ * glow drawn through the suit (depthTest off). Clicking it drills straight
+ * to the organ; the suit steps aside because the beacon carries organId.
+ */
+function OrganBeacon({ organ, status, visible }: { organ: Organ; status: TriageLevel; visible: boolean }) {
+  const { explode } = useDrill();
+  const focusOrgan = useViewerStore((s) => s.focusOrgan);
+  const reduceMotion = useAppStore((s) => s.reduceMotion);
+  const [hovered, setHovered] = useState(false);
+  useCursor(hovered && visible);
+  const groupRef = useRef<THREE.Group>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const coreMat = useRef<THREE.MeshBasicMaterial>(null);
+  const haloMat = useRef<THREE.MeshBasicMaterial>(null);
+  const haloRef = useRef<THREE.Mesh>(null);
+  const vis = useFade(visible ? 1 : 0, coreMat, coreRef, 5);
+  useExplodeFollow(groupRef, organ.position, organPart(organ), explode);
+
+  useFrame(({ clock }) => {
+    const p = reduceMotion ? 0.6 : alarm(clock.elapsedTime, status);
+    const v = vis.current;
+    if (coreMat.current) coreMat.current.opacity = (0.55 + 0.35 * p) * v;
+    if (haloMat.current) haloMat.current.opacity = (0.12 + 0.28 * p) * v;
+    if (haloRef.current) {
+      haloRef.current.visible = v > 0.01;
+      haloRef.current.scale.setScalar((hovered ? 1.3 : 1) * (0.85 + 0.3 * p));
+    }
+  });
+
+  const onClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    if (e.delta > 4) return;
+    focusOrgan(organ);
+  };
+
+  const color = ORGAN_RIM[status];
+  return (
+    <group ref={groupRef} position={organ.position}>
+      <mesh
+        ref={coreRef}
+        userData={{ organId: organ.id }}
+        renderOrder={10}
+        onClick={onClick}
+        raycast={visible ? meshRaycast : noRaycast}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHovered(true);
+        }}
+        onPointerOut={() => setHovered(false)}
+      >
+        <sphereGeometry args={[0.03, 20, 14]} />
+        <meshBasicMaterial ref={coreMat} color={color} transparent depthTest={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      <mesh ref={haloRef} raycast={noRaycast} renderOrder={10}>
+        <sphereGeometry args={[0.065, 20, 14]} />
+        <meshBasicMaterial ref={haloMat} color={color} transparent opacity={0} depthTest={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      {hovered && visible && (
+        <Html position={[0, 0.08, 0]} center wrapperClass="organ-label" style={{ pointerEvents: "none" }}>
+          <div className="organ-label-chip">
+            <span className={`organ-label-dot ${status.toLowerCase()}`} />
+            {organ.name} · {status}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+}
+
+/** Translucent ribcage/sternum/clavicles — orientation context for the
+ * chest drill. Never raycastable, so it can't steal organ clicks. */
+function RibcageContext({ visible }: { visible: boolean }) {
+  const { explode } = useDrill();
+  const geometry = useMemo(() => ribcageGeometry(), []);
+  const groupRef = useRef<THREE.Group>(null);
+  const matRef = useRef<THREE.MeshStandardMaterial>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  useFade(visible ? 0.22 : 0, matRef, meshRef, 5);
+  useExplodeFollow(groupRef, [0, 0, 0], "chest", explode);
+  return (
+    <group ref={groupRef}>
+      <mesh ref={meshRef} geometry={geometry} raycast={noRaycast} renderOrder={2}>
+        <meshStandardMaterial ref={matRef} vertexColors color="#ffffff" roughness={0.6} transparent opacity={0} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Organ meshes of one zone. Mounted on first use and kept afterwards so
+ * later drills fade in/out instead of rebuilding geometry. */
+function ZoneOrgans({
+  organs,
+  zone,
+  active,
+  presentIds,
+  pinned,
+}: {
+  organs: Organ[];
+  zone: BodyZone | undefined;
+  active: boolean;
+  presentIds: Set<string>;
+  pinned: boolean;
+}) {
+  const [armed, setArmed] = useState(active);
+  if (active && !armed) setArmed(true);
+  if (!armed) return null;
+  return (
+    <>
+      {organs.map((o) => (
+        <OrganMesh
+          key={o.id}
+          organ={o}
+          status={organStatus(o, zone)}
+          present={presentIds.has(o.id)}
+          pinnedLabel={pinned}
+        />
+      ))}
+    </>
+  );
+}
+
+const ZONE_IDS: ZoneId[] = ["head", "chest", "spine", "limbs", "gut", "skin"];
+
 function OrganLayer({ zones }: { zones: BodyZone[] }) {
-  const selectedZoneId = useViewerStore((s) => s.selectedZoneId);
-  const selectedOrganId = useViewerStore((s) => s.selectedOrganId);
-  const explode = useViewerStore((s) => s.explode);
-  if (!selectedZoneId || explode > 0.05) return null;
-  const zone = zones.find((z) => z.id === selectedZoneId);
-  if (!zone) return null;
-  return organsOf(selectedZoneId)
-    .filter((o) => selectedOrganId == null || o.id === selectedOrganId)
-    .map((o) => <OrganMesh key={o.id} organ={o} status={zone.status} />);
+  const { selectedZoneId, selectedOrganId, wireframe } = useDrill();
+
+  // present organs per drill state:
+  //  organ depth — only that organ · zone depth — that zone's organs ·
+  //  wireframe overview — every internal organ (skin samples excluded)
+  const presentIds = new Set<string>(
+    ORGANS.filter((o) =>
+      selectedOrganId != null
+        ? o.id === selectedOrganId
+        : selectedZoneId != null
+          ? o.zoneId === selectedZoneId
+          : wireframe && o.zoneId !== "skin",
+    ).map((o) => o.id),
+  );
+  const zoneOf = (id: ZoneId) => zones.find((z) => z.id === id);
+  const beaconsOn = selectedZoneId == null && !wireframe;
+
+  return (
+    <>
+      <RibcageContext visible={selectedZoneId === "chest" && selectedOrganId == null} />
+      {ZONE_IDS.map((zid) => {
+        const organs = organsOf(zid);
+        const active = organs.some((o) => presentIds.has(o.id));
+        return (
+          <ZoneOrgans
+            key={zid}
+            organs={organs}
+            zone={zoneOf(zid)}
+            active={active}
+            presentIds={presentIds}
+            pinned={selectedZoneId === zid && organs.length <= PINNED_LABEL_MAX}
+          />
+        );
+      })}
+      {ORGANS.map((o) => {
+        const status = organStatus(o, zoneOf(o.zoneId));
+        if (status === "NOMINAL") return null;
+        return <OrganBeacon key={o.id} organ={o} status={status} visible={beaconsOn} />;
+      })}
+    </>
+  );
 }
 
 /* ------------------------------ the model ------------------------------ */
@@ -439,111 +926,106 @@ interface AstronautModelProps {
   zones: BodyZone[];
   onMeasure?: (p: Vec3) => void;
   scale?: number;
+  /** Skin + organ layers (off for lightweight gallery previews; status
+   * beacons still render so the roster shows what's wrong). */
+  anatomy?: boolean;
 }
 
-export function AstronautModel({ zones, onMeasure, scale = 1 }: AstronautModelProps) {
+const SIDES = [1, -1] as const;
+
+export function AstronautModel({ zones, onMeasure, scale = 1, anatomy = true }: AstronautModelProps) {
   const zoneById = useMemo(() => {
     const map = new Map<ZoneId, BodyZone>();
     zones.forEach((z) => map.set(z.id, z));
     return (partId: string) => map.get(PART_ZONE[partId]);
   }, [zones]);
 
-  const groupRef = useRef<THREE.Group>(null);
+  // pre-build organ meshes in idle time so the first drill doesn't stall
+  useEffect(() => (anatomy ? warmOrganCache(ORGANS) : undefined), [anatomy]);
+
+  const g = suitGeometry;
+  const m = onMeasure;
+  const chestStatus = zoneById("chest")?.status ?? "NOMINAL";
 
   return (
-    <group ref={groupRef} scale={scale} position={MODEL_GROUP_OFFSET}>
-      {/* helmet + visor + head */}
+    <group scale={scale} position={MODEL_GROUP_OFFSET}>
+      {/* helmet (EVVA shell + lamps) · comm cap · gold visor · neck bearing */}
       <BodyPart partId="helmet" zoneId="head" position={[0, 1.52, 0]}>
-        <Solid zone={zoneById("helmet")} baseColor={HELMET} transparent opacity={0.92} onMeasure={onMeasure}>
-          <sphereGeometry args={[0.17, 32, 24]} />
-        </Solid>
+        <Solid zone={zoneById("helmet")} geometry={g("helmet")} baseColor={SUIT_WHITE} finish="hard" onMeasure={m} />
+        <Aux zone={zoneById("helmet")} geometry={g("helmetLamps")} finish="metal" onMeasure={m} />
+        <Aux zone={zoneById("helmet")} geometry={g("helmetLenses")} emissive="#e4ecff" emissiveIntensity={1.6} onMeasure={m} />
       </BodyPart>
       <BodyPart partId="head" zoneId="head" position={[0, 1.5, 0]}>
-        <Solid zone={zoneById("head")} baseColor={INNER} roughness={0.9} onMeasure={onMeasure}>
-          <sphereGeometry args={[0.105, 24, 18]} />
-        </Solid>
+        <Solid zone={zoneById("head")} geometry={g("commCap")} baseColor="#ffffff" tint={false} onMeasure={m} />
       </BodyPart>
-      <BodyPart partId="visor" zoneId="skin" position={[0, 1.52, 0.1]}>
-        <Solid zone={zoneById("visor")} baseColor={VISOR} roughness={0.18} metalness={0.85} onMeasure={onMeasure}>
-          <sphereGeometry args={[0.115, 24, 18]} />
-        </Solid>
+      <BodyPart partId="visor" zoneId="head" position={[0, 1.52, 0]}>
+        <Solid zone={zoneById("visor")} geometry={g("visor")} baseColor="#ffffff" tint={false} finish="visor" onMeasure={m} />
       </BodyPart>
-      <BodyPart partId="collar" zoneId="skin" position={[0, 1.365, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <Solid zone={zoneById("collar")} baseColor="#8b95a3" onMeasure={onMeasure}>
-          <torusGeometry args={[0.1, 0.028, 12, 28]} />
-        </Solid>
+      <BodyPart partId="collar" zoneId="head" position={[0, 1.37, 0]}>
+        <Solid zone={zoneById("collar")} geometry={g("neckRing")} baseColor="#ffffff" tint={false} finish="metal" onMeasure={m} />
       </BodyPart>
 
-      {/* torso */}
+      {/* hard upper torso + display & control module */}
       <BodyPart partId="chest" zoneId="chest" position={[0, 1.17, 0]}>
-        <Solid zone={zoneById("chest")} baseColor={SUIT_BASE} onMeasure={onMeasure}>
-          <capsuleGeometry args={[0.165, 0.22, 8, 20]} />
-        </Solid>
-        {/* chest control pack (same zone) */}
-        <Aux zone={zoneById("chest")} baseColor="#7d8794" roughness={0.5} metalness={0.3} position={[0, 0.03, 0.17]} onMeasure={onMeasure}>
-          <boxGeometry args={[0.16, 0.14, 0.05]} />
-        </Aux>
-      </BodyPart>
-      <BodyPart partId="abdomen" zoneId="gut" position={[0, 0.93, 0]}>
-        <Solid zone={zoneById("abdomen")} baseColor="#98a1ae" onMeasure={onMeasure}>
-          <capsuleGeometry args={[0.14, 0.14, 8, 20]} />
-        </Solid>
-        <Aux zone={zoneById("abdomen")} baseColor="#7d8794" position={[0, -0.12, 0]} rotation={[Math.PI / 2, 0, 0]} onMeasure={onMeasure}>
-          <torusGeometry args={[0.135, 0.026, 10, 24]} />
-        </Aux>
-      </BodyPart>
-      <BodyPart partId="spine" zoneId="spine" position={[0, 1.13, -0.16]}>
-        <Solid zone={zoneById("spine")} baseColor="#7d8794" roughness={0.55} onMeasure={onMeasure}>
-          <capsuleGeometry args={[0.045, 0.36, 6, 12]} />
-        </Solid>
-      </BodyPart>
-      <BodyPart partId="plss" zoneId="skin" position={[0, 1.18, -0.31]}>
-        <Solid zone={zoneById("plss")} baseColor="#8b95a3" roughness={0.5} metalness={0.25} onMeasure={onMeasure}>
-          <boxGeometry args={[0.3, 0.44, 0.15]} />
-        </Solid>
-        <Aux zone={zoneById("plss")} baseColor="#5d6672" metalness={0.6} roughness={0.4} position={[0.1, 0.3, -0.02]} onMeasure={onMeasure}>
-          <cylinderGeometry args={[0.006, 0.006, 0.16, 8]} />
-        </Aux>
+        <Solid zone={zoneById("chest")} geometry={g("hut")} baseColor={SUIT_WHITE} finish="hard" onMeasure={m} />
+        <Aux zone={zoneById("chest")} geometry={g("dcm")} onMeasure={m} />
+        <Aux zone={zoneById("chest")} geometry={g("dcmScreen")} emissive={SCREEN_GLOW[chestStatus]} emissiveIntensity={1.2} onMeasure={m} />
       </BodyPart>
 
-      {/* arms */}
-      <BodyPart partId="arm_l" zoneId="limbs" position={[-0.25, 1.1, 0]} rotation={[0, 0, 0.28]}>
-        <Solid zone={zoneById("arm_l")} baseColor={SUIT_BASE} onMeasure={onMeasure}>
-          <capsuleGeometry args={[0.052, 0.4, 6, 14]} />
-        </Solid>
-        <Aux zone={zoneById("arm_l")} baseColor="#8b95a3" roughness={0.7} position={[0, -0.27, 0]} onMeasure={onMeasure}>
-          <sphereGeometry args={[0.055, 14, 10]} />
-        </Aux>
-      </BodyPart>
-      <BodyPart partId="arm_r" zoneId="limbs" position={[0.25, 1.1, 0]} rotation={[0, 0, -0.28]}>
-        <Solid zone={zoneById("arm_r")} baseColor={SUIT_BASE} onMeasure={onMeasure}>
-          <capsuleGeometry args={[0.052, 0.4, 6, 14]} />
-        </Solid>
-        <Aux zone={zoneById("arm_r")} baseColor="#8b95a3" roughness={0.7} position={[0, -0.27, 0]} onMeasure={onMeasure}>
-          <sphereGeometry args={[0.055, 14, 10]} />
-        </Aux>
+      {/* lower torso / brief + waist bearing */}
+      <BodyPart partId="abdomen" zoneId="gut" position={[0, 0.92, 0]}>
+        <Solid zone={zoneById("abdomen")} geometry={g("lowerTorso")} baseColor={SUIT_WHITE} onMeasure={m} />
+        <Aux zone={zoneById("abdomen")} geometry={g("waistRing")} finish="metal" onMeasure={m} />
       </BodyPart>
 
-      {/* legs */}
-      <BodyPart partId="leg_l" zoneId="limbs" position={[-0.09, 0.5, 0]}>
-        <Solid zone={zoneById("leg_l")} baseColor="#98a1ae" onMeasure={onMeasure}>
-          <capsuleGeometry args={[0.065, 0.5, 6, 14]} />
-        </Solid>
-        <Aux zone={zoneById("leg_l")} baseColor="#7d8794" position={[0, -0.33, 0.03]} onMeasure={onMeasure}>
-          <boxGeometry args={[0.11, 0.07, 0.17]} />
-        </Aux>
-      </BodyPart>
-      <BodyPart partId="leg_r" zoneId="limbs" position={[0.09, 0.5, 0]}>
-        <Solid zone={zoneById("leg_r")} baseColor="#98a1ae" onMeasure={onMeasure}>
-          <capsuleGeometry args={[0.065, 0.5, 6, 14]} />
-        </Solid>
-        <Aux zone={zoneById("leg_r")} baseColor="#7d8794" position={[0, -0.33, 0.03]} onMeasure={onMeasure}>
-          <boxGeometry args={[0.11, 0.07, 0.17]} />
-        </Aux>
+      {/* dorsal mounting rail (spine zone) */}
+      <BodyPart partId="spine" zoneId="spine" position={[0, 1.13, -0.17]}>
+        <Solid zone={zoneById("spine")} geometry={g("dorsalRail")} baseColor={SUIT_WHITE} finish="hard" onMeasure={m} />
       </BodyPart>
 
-      {/* drill-down anatomy — appears once a zone is selected */}
-      <OrganLayer zones={zones} />
+      {/* PLSS backpack + SOP, vents, antenna, umbilicals */}
+      <BodyPart partId="plss" zoneId="skin" position={[0, 1.18, -0.285]}>
+        <Solid zone={zoneById("plss")} geometry={g("plss")} baseColor={SUIT_WHITE} finish="hard" onMeasure={m} />
+        <Aux zone={zoneById("plss")} geometry={g("plssDetails")} onMeasure={m} />
+        <Aux zone={zoneById("plss")} geometry={g("hoses")} finish="rubber" onMeasure={m} />
+      </BodyPart>
+
+      {/* arms hang from the shoulder bearings (data/suit-rig.ts) */}
+      {SIDES.map((side) => {
+        const partId = side === 1 ? "arm_l" : "arm_r";
+        const { position, rotation } = armTransform(side);
+        return (
+          <BodyPart key={partId} partId={partId} zoneId="limbs" position={position} rotation={rotation}>
+            <Solid zone={zoneById(partId)} geometry={g("arm")} baseColor={SUIT_WHITE} onMeasure={m} />
+            <Aux zone={zoneById(partId)} geometry={g("armBearings", side)} finish="metal" onMeasure={m} />
+            <Aux zone={zoneById(partId)} geometry={g("glove", side)} finish="fabric" onMeasure={m} />
+            <Aux zone={zoneById(partId)} geometry={g("armPatch", side)} onMeasure={m} />
+          </BodyPart>
+        );
+      })}
+
+      {/* legs: hip → convolute knee → boots on the floor (model y = 0) */}
+      {SIDES.map((side) => {
+        const partId = side === 1 ? "leg_l" : "leg_r";
+        return (
+          <BodyPart key={partId} partId={partId} zoneId="limbs" position={[side * HIP_X, 0, 0]}>
+            <Solid zone={zoneById(partId)} geometry={g("leg")} baseColor={SUIT_WHITE} onMeasure={m} />
+            <Aux zone={zoneById(partId)} geometry={g("boot")} finish="fabric" onMeasure={m} />
+            <Aux zone={zoneById(partId)} geometry={g("sole")} finish="rubber" onMeasure={m} />
+          </BodyPart>
+        );
+      })}
+
+      {/* skin between suit and organs, then the organ drill layer */}
+      {anatomy && <SkinLayer zones={zones} onMeasure={m} />}
+      {anatomy ? (
+        <OrganLayer zones={zones} />
+      ) : (
+        ORGANS.map((o) => {
+          const status = organStatus(o, zones.find((z) => z.id === o.zoneId));
+          return status === "NOMINAL" ? null : <OrganBeacon key={o.id} organ={o} status={status} visible />;
+        })
+      )}
     </group>
   );
 }
