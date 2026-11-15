@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 
+import { useCheckIn } from "@/hooks/useCheckIn";
 import { useCrew } from "@/hooks/useCrew";
 import { useLocationContext } from "@/hooks/useLocationContext";
 import { useProvider } from "@/hooks/useProvider";
@@ -31,7 +32,13 @@ const NAV_ITEMS: { href: string; label: string }[] = [
   { href: "/compare", label: "Go to Compare" },
   { href: "/log", label: "Go to Telemetry Log" },
   { href: "/medic", label: "Go to Medic AI" },
+  { href: "/checkin", label: "Go to Check-in" },
+  { href: "/register", label: "Enroll operator" },
   { href: "/settings", label: "Go to Settings" },
+];
+
+const MEDIC_NAV: { href: string; label: string }[] = [
+  { href: "/users", label: "Go to Operators (medic)" },
 ];
 
 const VIEWER_CMDS = [
@@ -52,6 +59,7 @@ export function CommandPalette() {
   const viewMode = useAppStore((s) => s.viewMode);
   const provider = useProvider();
   const { crew } = useCrew();
+  const { isMedic } = useCheckIn();
   const { locations, setLocation, refresh } = useLocationContext();
   const setLocationSynced = useAppStore((s) => s.setLocationSynced);
 
@@ -82,6 +90,14 @@ export function CommandPalette() {
         kind: "nav" as const,
         run: () => router.push(n.href),
       })),
+      ...(isMedic
+        ? MEDIC_NAV.map((n) => ({
+            id: `nav-${n.href}`,
+            label: n.label,
+            kind: "nav" as const,
+            run: () => router.push(n.href),
+          }))
+        : []),
       ...crew.map((c) => ({
         id: `crew-${c.id}`,
         label: `Monitor ${c.name} (${c.id})`,
@@ -130,7 +146,7 @@ export function CommandPalette() {
     return q
       ? list.filter((i) => i.label.toLowerCase().includes(q))
       : list;
-  }, [crew, locations, provider, query, refresh, router, setLocation, setLocationSynced, setViewMode, viewMode]);
+  }, [crew, isMedic, locations, provider, query, refresh, router, setLocation, setLocationSynced, setViewMode, viewMode]);
 
   const runItem = useCallback(
     (item: CommandItem) => {

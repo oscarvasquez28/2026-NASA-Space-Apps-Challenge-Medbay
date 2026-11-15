@@ -3,7 +3,10 @@
 import { Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 
+import Link from "next/link";
+
 import { StatusDot } from "@/components/ui/primitives";
+import { useCheckIn } from "@/hooks/useCheckIn";
 import { useHealthStatus } from "@/hooks/useHealthStatus";
 import { useAppStore } from "@/stores/app-store";
 
@@ -14,6 +17,9 @@ const CRUMBS: Record<string, string> = {
   "/compare": "COMPARE",
   "/log": "TELEMETRY LOG",
   "/medic": "MEDIC AI",
+  "/checkin": "CHECK-IN",
+  "/register": "ENROLL OPERATOR",
+  "/users": "OPERATORS",
   "/settings": "SETTINGS",
 };
 
@@ -27,6 +33,7 @@ export function Topbar() {
   const pathname = usePathname();
   const { state, providerKind } = useHealthStatus();
   const setCommandOpen = useAppStore((s) => s.setCommandOpen);
+  const { activeUser } = useCheckIn();
 
   return (
     <header className="topbar">
@@ -78,9 +85,22 @@ export function Topbar() {
             : "CHECKING…"}
       </div>
 
-      <div className="avatar" title="Flight surgeon console">
-        FS
-      </div>
+      <Link
+        href="/checkin"
+        className="avatar"
+        title={
+          activeUser
+            ? `${activeUser.name} (${activeUser.role.toUpperCase()}) — check-in`
+            : "No operator enrolled — check-in"
+        }
+      >
+        {activeUser ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={activeUser.facePhoto} alt={activeUser.name} />
+        ) : (
+          "—"
+        )}
+      </Link>
     </header>
   );
 }

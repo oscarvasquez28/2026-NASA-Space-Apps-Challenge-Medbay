@@ -14,6 +14,8 @@ import { useEffect, type ReactNode } from "react";
 
 import { HONESTY_LABEL } from "@/components/ui/primitives";
 import { hydrateAppStore, useAppStore } from "@/stores/app-store";
+import { hydrateUserStore } from "@/stores/user-store";
+import { AuthGate } from "./AuthGate";
 import { BootSequence } from "./BootSequence";
 import { CommandPalette } from "./CommandPalette";
 import { MissionContextBar } from "./MissionContextBar";
@@ -40,6 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     hydrateAppStore();
+    hydrateUserStore();
   }, []);
 
   return (
@@ -50,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Topbar />
         <div className="main-area">
           <MissionContextBar />
-          {children}
+          <AuthGate>{children}</AuthGate>
         </div>
         <footer className="app-footer">
           <span>ASTROLAB MONITOR ENGINE</span>

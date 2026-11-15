@@ -6,13 +6,16 @@ import {
   ClipboardList,
   GitCompare,
   LayoutGrid,
+  ScanFace,
   Settings,
   Users,
+  UsersRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { StatusDot } from "@/components/ui/primitives";
+import { useCheckIn } from "@/hooks/useCheckIn";
 import { useAppStore } from "@/stores/app-store";
 
 const NAV = {
@@ -33,6 +36,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const hydrated = useAppStore((s) => s.hydrated);
   const viewMode = useAppStore((s) => s.viewMode);
+  const { isMedic } = useCheckIn();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -71,6 +75,12 @@ export function Sidebar() {
 
       {group("LAB", NAV.lab)}
       {group("TOOLS", NAV.tools)}
+      {group("SESSION", [
+        { href: "/checkin", label: "Check-in", icon: ScanFace },
+        ...(isMedic
+          ? [{ href: "/users", label: "Operators", icon: UsersRound }]
+          : []),
+      ])}
       {group("SYSTEM", NAV.system)}
 
       <div className="sidebar-footer">
