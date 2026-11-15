@@ -6,7 +6,8 @@
 import { describe, expect, it } from "vitest";
 
 import { MockHealthDataProvider } from "@/services/mock-provider";
-import type { VitalSigns } from "@/types/health";
+import { RestHealthDataProvider } from "@/services/rest-provider";
+import type { TelemetryMetric, VitalSigns } from "@/types/health";
 
 const provider = new MockHealthDataProvider();
 
@@ -114,5 +115,93 @@ describe("MockHealthDataProvider", () => {
       expect(profile.hazards.radiation).toBeGreaterThanOrEqual(0);
       expect(["local", "advisory"]).toContain(profile.linkMode);
     }
+  });
+
+  it("supports active location updates & ECLSS overrides", async () => {
+    const updated = await provider.updateLocationProfile("mars", {
+      co2_mmhg: 4.1,
+      offline_fallback_active: true,
+    });
+    expect(updated.id).toBe("mars");
+    expect(updated.eclss?.co2_mmhg).toBe(4.1);
+    expect(updated.offlineFallbackActive).toBe(true);
+    const active = await provider.getActiveLocation();
+    expect(active.id).toBe("mars");
+  });
+
+  it("serves all 8 backend trend metrics with 95% CI bounds", async () => {
+    const metrics: TelemetryMetric[] = [
+      "heart_rate",
+      "spo2",
+      "core_temp",
+      "radiation",
+      "blood_sugar",
+      "bone_density",
+      "visual_acuity",
+      "mission_readiness",
+    ];
+    for (const metric of metrics) {
+      const s = await provider.getTelemetrySeries("AST-01", metric);
+      expect(s.points.length).toBeGreaterThan(0);
+      expect(s.forecast.length).toBeGreaterThan(0);
+      expect(s.forecast[0].lowerCi).toBeDefined();
+      expect(s.forecast[0].upperCi).toBeDefined();
+    }
+  });
+
+  it("ingests multi-modal telemetry and enqueues off-nominal packets", async () => {
+    const res = await provider.ingestTelemetry({
+      astronaut_id: "AST-01",
+      heart_rate_bpm: 145,
+      spo2_percent: 84,
+      suit_pressure_kpa: 22,
+      target_anatomical_zone: "cardiovascular_chest",
+    });
+    expect(res.status).toBe("critical");
+    expect(res.anomaly_flags.length).toBeGreaterThan(0);
+
+    const queue = await provider.getTelemedicineQueue();
+    expect(queue.pending_count).toBeGreaterThan(0);
+    const flushed = await provider.flushTelemedicineQueue({ force_flush: true });
+    expect(flushed.flushed_count).toBeGreaterThan(0);
+  });
+
+  it("searches RAG knowledge base & synthesizes speech + visemes", async () => {
+    const rag = await provider.searchKnowledge("SANS optic disc edema", {
+      topK: 2,
+    });
+    expect(rag.results.length).toBeGreaterThan(0);
+
+    const tts = await provider.synthesizeSpeech({
+      text: "Caution: elevated cabin carbon dioxide.",
+      severity: "caution",
+      force_offline: true,
+    });
+    expect(tts.audio_base64.length).toBeGreaterThan(10);
+    expect(tts.viseme_cues.length).toBeGreaterThan(0);
+    expect(tts.offline_mode).toBe(true);
+  });
+
+  it("completes checkups, equips skins, and restores DB snapshot", async () => {
+    const res = await provider.completeCheckup({
+      astronaut_id: "AST-01",
+      completed_tasks: ["task_morning_vitals", "task_ared_exercise"],
+      perform_gachapon_roll: true,
+      deterministic_seed: 3,
+    });
+    expect(res.roll_performed).toBe(true);
+    expect(res.roll_result?.rolled_skin.skin_id).toBeTruthy();
+
+    const restored = await provider.restoreDatabaseSnapshot();
+    expect(restored.restored).toBe(true);
+    expect(restored.default_astronaut_id).toBe("AST-01");
+  });
+});
+
+describe("RestHealthDataProvider configuration", () => {
+  it("marks full backend wiring with partial = false", () => {
+    const rest = new RestHealthDataProvider();
+    expect(rest.kind).toBe("rest");
+    expect(rest.partial).toBe(false);
   });
 });
