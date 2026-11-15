@@ -106,7 +106,34 @@ export interface RiskFactor {
 
 /* ---------- Anatomical drill-down (model layer, shared across crew) ---------- */
 
-export type OrganGeometry = "sphere" | "capsule" | "cylinder" | "torus";
+/** Procedural builder ids — see components/three/organ-geometry.ts. */
+export type OrganShape =
+  | "brain"
+  | "eye"
+  | "heart"
+  | "lung"
+  | "trachea"
+  | "esophagus"
+  | "diaphragm"
+  | "spine_cervical"
+  | "spine_thoracic"
+  | "spine_lumbar"
+  | "pelvis"
+  | "biceps"
+  | "femur"
+  | "liver"
+  | "gallbladder"
+  | "stomach"
+  | "spleen"
+  | "pancreas"
+  | "kidney"
+  | "small_intestine"
+  | "colon"
+  | "bladder"
+  | "skin_section";
+
+/** Idle motion driven by the organ's own vitals (respects reduced motion). */
+export type OrganAnim = "heartbeat" | "breath" | "peristalsis";
 
 /** A drill-down anatomical structure rendered inside a BodyZone.
  * Anatomy is static (data/organs.ts) — status is inherited from the
@@ -118,10 +145,13 @@ export interface Organ {
   /** Anchor (model-local) — world anchor = position + MODEL_GROUP_OFFSET. */
   position: Vec3;
   rotation?: Vec3;
-  /** Procedural primitive: kind + geometry constructor args. */
-  geo: { kind: OrganGeometry; args: number[] };
-  /** Non-uniform squash for organic silhouettes. */
-  scale?: Vec3;
+  /** Procedural mesh builder (one merged BufferGeometry per organ). */
+  shape: OrganShape;
+  /** Anatomical side for paired organs: +1 patient-left (+x), -1 right. */
+  side?: 1 | -1;
+  /** Camera distance when this organ is focused (default 0.6). */
+  focusDistance?: number;
+  anim?: OrganAnim;
   description: string;
   vitals: VitalReading[];
 }
