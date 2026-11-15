@@ -787,3 +787,27 @@ export interface GamificationState {
   highLevel?: string;
   technical?: string;
 }
+
+/* ---------- Local users & daily check-in (frontend-only, localStorage) ---------- */
+
+/** Operator session role — `medic` sees every enrolled user; `user` sees only their own. */
+export type UserRole = "medic" | "user";
+
+/** Enrolled console operator. facePhoto is a compressed JPEG dataURL kept in localStorage. */
+export interface LocalUser {
+  id: string;
+  name: string;
+  callsign?: string;
+  role: UserRole;
+  facePhoto: string;
+  /** Gamification key — the backend auto-seeds a profile for any astronaut_id. */
+  astronautId: string;
+  createdAt: string;
+}
+
+export interface CheckInRecord {
+  userId: string;
+  /** YYYY-MM-DD local day key. */
+  day: string;
+  at: string;
+}

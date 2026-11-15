@@ -194,3 +194,44 @@ export const COMPANION_SKINS: SkinDef[] = [
     probabilityPercent: 1,
   },
 ];
+
+/* ---------- Prize Drum Wheel (check-in reward, frontend-only roll) ---------- */
+
+/** Rarities the drum can land on — the only three prize outcomes. */
+export type DrumRarity = "common" | "rare" | "legendary";
+
+/** Weighted odds for the check-in drum (percent). */
+export const DRUM_WEIGHTS: Record<DrumRarity, number> = {
+  common: 60,
+  rare: 30,
+  legendary: 10,
+};
+
+/** Roll a drum rarity using DRUM_WEIGHTS. Pass `rng` for deterministic tests. */
+export function rollDrumRarity(rng: () => number = Math.random): DrumRarity {
+  const total = Object.values(DRUM_WEIGHTS).reduce((a, b) => a + b, 0);
+  let pick = rng() * total;
+  for (const [rarity, w] of Object.entries(DRUM_WEIGHTS) as [
+    DrumRarity,
+    number,
+  ][]) {
+    if ((pick -= w) < 0) return rarity;
+  }
+  return "common";
+}
+
+/**
+ * Pick a skin of `rarity` from the catalog, preferring ones not in
+ * `ownedIds`. Returns undefined if the rarity tier is empty.
+ */
+export function pickSkinOfRarity(
+  rarity: DrumRarity,
+  ownedIds: readonly string[],
+  rng: () => number = Math.random,
+): SkinDef | undefined {
+  const tier = COMPANION_SKINS.filter((s) => s.rarity === rarity);
+  if (tier.length === 0) return undefined;
+  const locked = tier.filter((s) => !ownedIds.includes(s.id));
+  const pool = locked.length > 0 ? locked : tier;
+  return pool[Math.floor(rng() * pool.length)];
+}
