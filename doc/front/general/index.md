@@ -7,5 +7,5 @@
 
 | Topic | Read this file | Mapped Code |
 | :--- | :--- | :--- |
-| Stack, routes, providers/stores/hooks, runtime config, full 29-API backend integration & local session gate (`AuthGate`, operator profiles, check-in, Prize Drum) | [`architecture.md`](architecture.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` |
+| Stack, routes, providers/stores/hooks, runtime config, full backend integration & biometric session gate (`AuthGate`, operator profiles, check-in, Prize Drum) | [`architecture.md`](architecture.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` |
 | MECHAVIS design blueprint this UI replicates | [`../mechavis-design-reference.md`](../mechavis-design-reference.md) | `frontend/app/globals.css`, `frontend/components/` |

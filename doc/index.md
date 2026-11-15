@@ -30,7 +30,7 @@ Find your task domain below and jump directly to that directory's `index.md`:
 | **Backend Auth & Face ID (Operators, `face_credentials`, YuNet+SFace)** | [`doc/back/auth/index.md`](back/auth/index.md) | `backend/app/auth/`, `backend/app/api/routes/auth.py` | Active (Biometric Session) |
 | **Backend Telemedicine (Tempus Pro Store-and-Forward)** | [`doc/back/telemedicine/index.md`](back/telemedicine/index.md) | `backend/app/telemedicine/` | Active (Phase 4) |
 | **Frontend (Overall)** | [`doc/front/index.md`](front/index.md) | `frontend/` (Next.js 16 App Router lab console) | Active (Full REST Integration) |
-| **Frontend General (App Shell, Providers, Stores/Hooks, API Client)** | [`doc/front/general/index.md`](front/general/index.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` | Active (29-API Wired) |
+| **Frontend General (App Shell, Providers, Stores/Hooks, API Client)** | [`doc/front/general/index.md`](front/general/index.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` | Active (Full REST Integration) |
 | **Frontend TTS (Text-to-Speech / Voice Alerts)** | [`doc/front/tts/index.md`](front/tts/index.md) | `frontend/hooks/useSpeech.ts` | Active (`POST /api/v1/ai/tts`) |
 | **Frontend Models (Domain Types, Datasets, Part→Zone Map)** | [`doc/front/models/index.md`](front/models/index.md) | `frontend/types/health.ts`, `frontend/data/`, `frontend/components/three/` | Initialized |
 | **Infrastructure (Docker Compose, `.env`, GCP Cloud Run)** | [`doc/infra/index.md`](infra/index.md) | `docker-compose.yml`, `.env.example`, `backend/Dockerfile`, `frontend/Dockerfile` | Active (4-Container Topology) |

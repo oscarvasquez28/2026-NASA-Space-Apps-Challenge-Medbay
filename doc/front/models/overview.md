@@ -25,7 +25,7 @@
 - `telemetry.ts` — deterministic mock time series + 95% CI forecast fallback + mission-event markers + reference bands for all 10 `TelemetryMetric` keys.
 - `gamification.ts` — 5 backend-aligned `DAILY_CHECKLIST` routine tasks (`task_*`), `SKIN_PALETTES` (`getSkinPalette`), and 12 `COMPANION_SKINS` across `common|rare|epic|legendary`.
 
-In default `rest` mode (`partial: false`), live data comes from FastAPI across all 29 Postman Master requests; only mock-only metrics (`exertion`, `fatigue`) or explicit `DATA_PROVIDER=mock` / Vitest use the offline datasets above.
+In default `rest` mode (`partial: false`), live data comes from FastAPI across all Phase 1–4 & Biometric endpoints; only mock-only metrics (`exertion`, `fatigue`) or explicit `DATA_PROVIDER=mock` / Vitest use the offline datasets above.
 
 ## Procedural EVA Suit (`components/three/suit-geometry.ts` + `astronaut-model.tsx`)
 

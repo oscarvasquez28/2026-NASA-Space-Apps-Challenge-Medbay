@@ -26,7 +26,7 @@ frontend/
 │   ├── log/page.tsx              # Multi-modal telemetry ingest + triage + Tempus Pro queue/flush
 │   ├── medic/page.tsx            # Clinical AI copilot + RAG Space Medicine Knowledge Explorer
 │   ├── compare/page.tsx          # Two-subject comparison
-│   ├── settings/page.tsx         # Quality / motion / view-mode prefs + DB snapshot restore
+│   ├── settings/page.tsx         # Quality / motion / view-mode prefs + baseline reset
 │   ├── register/page.tsx         # Operator enrollment (face photo required)
 │   ├── checkin/page.tsx          # Daily check-in — simulated visual-ID scan
 │   └── users/page.tsx            # Operator management (medic-only)
@@ -34,13 +34,13 @@ frontend/
 │   ├── ui/                       # primitives (Eyebrow, StatusChip…), Modal (Radix),
 │   │                             #   FaceCapture (capture/scan camera + upload fallback)
 │   ├── layout/                   # AppShell, Sidebar, Topbar, MissionContextBar (+ ECLSS popover),
-│   │                             #   CommandPalette (⌘K + DB reset), BootSequence,
+│   │                             #   CommandPalette (⌘K + baseline reset), BootSequence,
 │   │                             #   AuthGate (register/check-in session gate)
 │   ├── three/                    # astronaut-model, canvas-scene, model-viewport,
 │   │                             #   procedural (shared toolkit), suit-geometry (EVA suit),
 │   │                             #   organ-geometry (procedural anatomy), skin-geometry,
 │   │                             #   viewer-toolbar, zone/organ tooltips, shared-gallery, fallback-figure
-│   └── widgets/                  # ZoneInspector, ChatPanel (+ TTS viseme console), TelemetryLogger,
+│   └── widgets/                  # ZoneInspector, ChatPanel (+ AUTO TTS & viseme sync), TelemetryLogger,
 │                                 #   TrendsChart (with 95% CI), ChecklistWidget (+ 12-Skin Suit Locker),
 │                                 #   PrizeWheel (check-in reward drum — COMMON/RARE/LEGENDARY)
 ├── types/health.ts               # Domain types + Phase 1–4 backend DTO mirrors
@@ -53,7 +53,7 @@ frontend/
 │                                 #   useCheckIn (session/streak/spin cadence), useIdleLock (inactivity lock)
 ├── stores/                       # app-store (persist + synced location context), viewer-store,
 │                                 #   user-store (persisted + backend-synced operators, key `astro-lab:user`)
-├── lib/                          # api.ts (15 typed FastAPI endpoints), config.ts, sample-media.ts
+├── lib/                          # api.ts (typed FastAPI client), config.ts, sample-media.ts
 └── tests/                        # provider.test.ts (contract suite) +
                                   #   user-store.test.ts (session logic)
 
@@ -61,7 +61,7 @@ frontend/
 
 1. **Headless separation** — all fetching/state lives in `hooks/` + `stores/`; components are presentational.
 2. **HealthDataProvider contract** (`services/health-provider.ts`) — `rest` (default, `RestHealthDataProvider` with `partial: false`, connected to all FastAPI Phase 1–4 endpoints) vs `mock` (offline deterministic dataset + Vitest parity). Swap via `NEXT_PUBLIC_DATA_PROVIDER` / `DATA_PROVIDER`.
-3. **Dual view** — `app-store.viewMode` (`high_level` | `technical`) dynamically renders backend dual-narrative fields (`high_level` vs `technical`) across context, zones, trends, telemetry, RAG docs, AI chat, gamification, telemedicine, and snapshot reset.
+3. **Dual view** — `app-store.viewMode` (`high_level` | `technical`) dynamically renders backend dual-narrative fields (`high_level` vs `technical`) across context, zones, trends, telemetry, RAG docs, AI chat, gamification, telemedicine, and baseline reset.
 4. **Location context & ECLSS** — `app-store.locationId` + `liveLocationProfile` synchronize with `GET/POST /api/v1/context/location` (5-Hazards multipliers, gravity, comm latency, offline fallback, ECLSS parameters) via `useLocationContext`.
 5. **Single selection/focus pipeline** — model clicks, zone lists, chat references, and AI `focus` actions all call `viewer-store.focus(zone)` (one store per `ViewerProvider`). `BodyZone.position` is model-local; `focus()` converts it to world space via `MODEL_GROUP_OFFSET` (`types/health.ts`).
 6. **Anatomical drill-down & live Vital merge** — `RestHealthDataProvider` merges backend `AstronautBodyStatusResponse` zone statuses, `self_exam_steps`, `recommended_countermeasures`, and `linked_vitals` onto structural `ORGAN_WATCH` baselines in `data/crew.ts`, keeping organ heartbeat/breath/peristalsis animations accurate while reflecting real DB values.
