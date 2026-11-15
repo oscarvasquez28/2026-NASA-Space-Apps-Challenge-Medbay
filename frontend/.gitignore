@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# Local environment overrides (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
