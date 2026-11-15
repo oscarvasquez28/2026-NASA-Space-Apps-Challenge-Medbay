@@ -17,60 +17,63 @@
 frontend/
 ├── app/
 │   ├── layout.tsx                # fonts + AppShell
-│   ├── page.tsx                  # Home hero (3D astronaut + spec strip)
+│   ├── page.tsx                  # Home hero (live 3D astronaut + location/crew spec strip + checklist)
 │   ├── globals.css               # design tokens + component classes
 │   ├── api/runtime-config/       # GET runtime env bridge (apiUrl, dataProvider, ids)
 │   ├── crew/page.tsx             # Roster explorer (shared-canvas 3D previews)
-│   ├── crew/[id]/page.tsx        # Anatomical explorer — core workspace
-│   ├── telemetry/page.tsx        # Trends dashboard + overlay modes
-│   ├── log/page.tsx              # Telemetry & behavioral logger
-│   ├── medic/page.tsx            # Dedicated AI companion view
+│   ├── crew/[id]/page.tsx        # Anatomical explorer — live 6-zone status + self-exams + countermeasures
+│   ├── telemetry/page.tsx        # Trends dashboard (8 backend indicators + 95% CI forecast + overlays)
+│   ├── log/page.tsx              # Multi-modal telemetry ingest + triage + Tempus Pro queue/flush
+│   ├── medic/page.tsx            # Clinical AI copilot + RAG Space Medicine Knowledge Explorer
 │   ├── compare/page.tsx          # Two-subject comparison
-│   └── settings/page.tsx         # Quality / motion / view-mode prefs
+│   └── settings/page.tsx         # Quality / motion / view-mode prefs + DB snapshot restore
 ├── components/
 │   ├── ui/                       # primitives (Eyebrow, StatusChip…), Modal (Radix)
-│   ├── layout/                   # AppShell, Sidebar, Topbar, MissionContextBar,
-│   │                             #   CommandPalette (⌘K), BootSequence
+│   ├── layout/                   # AppShell, Sidebar, Topbar, MissionContextBar (+ ECLSS popover),
+│   │                             #   CommandPalette (⌘K + DB reset), BootSequence
 │   ├── three/                    # astronaut-model, canvas-scene, model-viewport,
 │   │                             #   procedural (shared toolkit), suit-geometry (EVA suit),
 │   │                             #   organ-geometry (procedural anatomy), skin-geometry,
-│   │                             #   viewer-toolbar,
-│   │                             #   zone/organ tooltips, shared-gallery,
-│   │                             #   fallback-figure (SVG, a11y)
-│   └── widgets/                  # ZoneInspector, ChatPanel, TelemetryLogger,
-│                                 #   TrendsChart, ChecklistWidget (+Gachapon)
-├── types/health.ts               # Domain types (zones, crew, telemetry, assistant…)
-├── data/                         # Curated datasets (crew, mission, telemetry, gamification)
+│   │                             #   viewer-toolbar, zone/organ tooltips, shared-gallery, fallback-figure
+│   └── widgets/                  # ZoneInspector, ChatPanel (+ TTS viseme console), TelemetryLogger,
+│                                 #   TrendsChart (with 95% CI), ChecklistWidget (+ 12-Skin Suit Locker)
+├── types/health.ts               # Domain types + Phase 1–4 backend DTO mirrors
+├── data/                         # Curated metadata, fallbacks & backend-aligned palettes
 ├── services/                     # health-provider (contract), mock-provider,
-│                                 #   rest-provider, provider (factory)
+│                                 #   rest-provider (partial=false), provider (factory, default rest)
 ├── hooks/                        # useProvider/useCrew/useBodyStatus/useTelemetry/
 │                                 #   useLocationContext/useHealthStatus/
-│                                 #   useAICompanion/useGamification/useSpeech
-├── stores/                       # app-store (persist), viewer-store (context)
-├── lib/                          # api.ts (REST client), config.ts (runtime cfg)
+│                                 #   useAICompanion/useGamification/useSpeech (TTS + visemes)
+├── stores/                       # app-store (persist + synced location context), viewer-store
+├── lib/                          # api.ts (15 typed FastAPI endpoints), config.ts, sample-media.ts
 └── tests/provider.test.ts        # HealthDataProvider contract suite
-```
 
 ## Key architectural mandates
 
 1. **Headless separation** — all fetching/state lives in `hooks/` + `stores/`; components are presentational.
-2. **HealthDataProvider contract** (`services/health-provider.ts`) — `mock` (default, deterministic curated data, simulated latency) vs `rest` (wires the real endpoints and delegates missing surface to mock, flagged `partial: true`). Swap via `NEXT_PUBLIC_DATA_PROVIDER` / `DATA_PROVIDER`.
-3. **Dual view** — `app-store.viewMode` (`high_level` | `technical`) re-renders every widget; persisted.
-4. **Location context** — `app-store.locationId` → `LocationProfile` (comm latency, blackout risk, hazard weights, AI link mode) via `useLocationContext`.
-5. **Honesty labels** — everything simulated carries `SIMULATED TELEMETRY · NOT A MEDICAL DEVICE` disclaimers (`<Disclaimer>` / `HONESTY_LABEL`).
-6. **Single selection/focus pipeline** — model clicks, zone lists, chat references and AI `focus` actions all call `viewer-store.focus(zone)` (one store per `ViewerProvider`). `BodyZone.position` is model-local; `focus()` converts it to world space via `MODEL_GROUP_OFFSET` (`types/health.ts`), the same constant the model group renders at.
-7. **Anatomical drill-down** — three layers (suit → skin → organs) and three depths: body → zone → organ, with fade/slide transitions, beacons for off-nominal organs at body depth and a wireframe overview that shows every organ through the suit (details: `doc/front/models/overview.md`). `viewer-store` tracks `selectedZoneId` + `selectedOrganId` + `focusDistance` (zone: fitted to its organs by `zoneFraming()`, organ: per-atlas `Organ.focusDistance`; camera `minDistance` 0.15). `focusOrgan(organ)` keeps the parent zone selected; `focus()`/`select()`/`reset()` step back up. UI: `drill-breadcrumb` overlay, `OrganTooltip`, "INTERNAL STRUCTURES" list in `ZoneInspector`. Organ anatomy lives in `data/organs.ts` (shared atlas, parent-zone status inheritance) with procedural meshes from `components/three/organ-geometry.ts` — not part of the provider contract.
-8. **Viewport-height contract** — workspace pages bound themselves to the space `.main-area` leaves (`flex: 1 1 0%` + `min-height: 0` + `overflow: hidden` on the page root), never `min-height:100%`/`height:100%` (content-driven → overflows the fold by sibling heights like `.ctxbar`'s). `.workspace-grid` uses `grid-template-rows: minmax(0,1fr)` so the inspector's content can't inflate the row; `.main-area > *:not(.ctxbar)` carries the fill rule (equal specificity used to override `.ctxbar`'s own `flex` and balloon it).
+2. **HealthDataProvider contract** (`services/health-provider.ts`) — `rest` (default, `RestHealthDataProvider` with `partial: false`, connected to all FastAPI Phase 1–4 endpoints) vs `mock` (offline deterministic dataset + Vitest parity). Swap via `NEXT_PUBLIC_DATA_PROVIDER` / `DATA_PROVIDER`.
+3. **Dual view** — `app-store.viewMode` (`high_level` | `technical`) dynamically renders backend dual-narrative fields (`high_level` vs `technical`) across context, zones, trends, telemetry, RAG docs, AI chat, gamification, telemedicine, and snapshot reset.
+4. **Location context & ECLSS** — `app-store.locationId` + `liveLocationProfile` synchronize with `GET/POST /api/v1/context/location` (5-Hazards multipliers, gravity, comm latency, offline fallback, ECLSS parameters) via `useLocationContext`.
+5. **Single selection/focus pipeline** — model clicks, zone lists, chat references, and AI `focus` actions all call `viewer-store.focus(zone)` (one store per `ViewerProvider`). `BodyZone.position` is model-local; `focus()` converts it to world space via `MODEL_GROUP_OFFSET` (`types/health.ts`).
+6. **Anatomical drill-down & live Vital merge** — `RestHealthDataProvider` merges backend `AstronautBodyStatusResponse` zone statuses, `self_exam_steps`, `recommended_countermeasures`, and `linked_vitals` onto structural `ORGAN_WATCH` baselines in `data/crew.ts`, keeping organ heartbeat/breath/peristalsis animations accurate while reflecting real DB values.
+7. **Viewport-height contract** — workspace pages bound themselves to the space `.main-area` leaves (`flex: 1 1 0%` + `min-height: 0` + `overflow: hidden` on the page root).
 
 ## Backend Communication Contract
 
 - Browser calls backend directly; CORS handled backend-side.
 - Base URL resolution: `NEXT_PUBLIC_API_URL` (build) → `GET /api/runtime-config` (`PUBLIC_API_URL`, Docker-friendly) → `http://localhost:8080`.
-- Real endpoints consumed (rest provider): `GET /health` → `checkHealth()`; `POST /api/v1/triage/evaluate` → `submitTelemetry()`. No contract changes.
+- Full endpoint surface consumed by `RestHealthDataProvider` (`frontend/lib/api.ts`):
+  - `GET /health` → `checkHealth()`
+  - `GET /api/v1/context/location`, `POST /api/v1/context/location` → `getActiveLocation()`, `getLocationProfile()`, `updateLocationProfile()`
+  - `POST /api/v1/triage/evaluate` → `submitTelemetry()`
+  - `POST /api/v1/telemetry/ingest` (JSON & `multipart/form-data` image upload) → `ingestTelemetry()`, `submitLog()`
+  - `GET /api/v1/astronaut/body-status` → `getCrewMember()`, `getCrew()`
+  - `GET /api/v1/trends/{indicator}` (8 backend indicators + 95% CI bounds) → `getTelemetrySeries()`
+  - `GET /api/v1/ai/knowledge` → `searchKnowledge()`
+  - `POST /api/v1/ai/chat` → `ask()`
+  - `POST /api/v1/ai/tts` → `synthesizeSpeech()` (via `useSpeech`)
+  - `GET /api/v1/gamification/status`, `POST /api/v1/gamification/checkup-complete` → `getGamification()`, `completeCheckup()`, `pullGachapon()`
+  - `GET /api/v1/telemedicine/sync-queue`, `POST /api/v1/telemedicine/flush` → `getTelemedicineQueue()`, `flushTelemedicineQueue()`
+  - `PUT /api/v1/tests/dbsnapshot` → `restoreDatabaseSnapshot()`
 - `INTERNAL_BACKEND_URL=http://backend:8080` reserved for future server-side proxying.
-- Astronaut IDs: `ASTRONAUT_IDS` / `NEXT_PUBLIC_ASTRONAUT_IDS` (no roster endpoint exists).
-
-## Known Gaps (backend contract)
-
-- No roster, telemetry-history, zone, or AI endpoints → those surfaces are served by the **mock provider** and labelled simulated; `rest` mode marks itself `partial` and still delegates them.
-- No per-vital status from the API → zone status values come from curated datasets only; no clinical thresholds are hardcoded in components (reference bands ship inside provider telemetry series).
+- Astronaut IDs: `ASTRONAUT_IDS` / `NEXT_PUBLIC_ASTRONAUT_IDS` configures the roster list queried against `/api/v1/astronaut/body-status`; baseline 3D/biometric metadata merges from `frontend/data/crew.ts` (note: two legacy mock-only trend metrics `exertion` and `fatigue` still delegate to `MockHealthDataProvider`).

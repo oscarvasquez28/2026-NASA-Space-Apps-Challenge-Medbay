@@ -2,30 +2,30 @@
 
 ## Domain Types (`frontend/types/health.ts`)
 
-- **Backend DTO mirrors** — `TriageLevel` (`NOMINAL|CAUTION|URGENT|CRITICAL`), `VitalSigns` (request of `POST /api/v1/triage/evaluate`), `TriageAssessment` (response), `HealthResponse` (`GET /health`). Keep aligned with `backend/app/triage/models.py`.
-- **Explorer model** — `ZoneId` (`head|chest|spine|limbs|gut|skin`), `BodyZone` (status, vitals, `partIds`, 3D `position`, description), `CrewMember` (zones, biometrics, risks, protocols, checks, readiness), `ViewMode` (`high_level|technical`).
-- **Drill-down anatomy** — `Organ` (model-local `position`/`rotation`, `shape: OrganShape` builder id, `side` ±1 for paired organs, optional `focusDistance` and `anim: heartbeat|breath|peristalsis`, vitals, description). `MODEL_GROUP_OFFSET` converts model-local ↔ world coords. Organ status is the organ's own: `organStatus()` = worst live zone reading among its vital keys + `ORGAN_WATCH` keys (e.g. URGENT chest HR/BP → heart, SpO2 → lungs, trachea stays nominal); `organVitals()` overlays the member's live zone readings on the curated values.
-- **Telemetry** — `TelemetryMetric`, `TelemetrySeries` (points + forecast + `MissionEvent[]` + provider-owned reference `band` — bands come from data, never hardcoded in components).
-- **Location context** — `LocationProfile` (`commLatencySec`, `blackoutRisk`, `linkMode`, `HazardWeights`), `LocationId` (station/spacecraft/moon/mars/eva).
-- **AI companion contract** — `AssistantResponse` (`message`, `referencedZoneIds`, `actions: [{type:"focus",zoneId}]`, `insights`, `assumptions`, `mode`), `ChatMessage`.
-- **Ingest / gamification** — `BehaviorLog`, `LogAck`, `GamificationState`, `SkinDef`.
+- **Backend DTO mirrors** — All Phase 1–4 backend Pydantic contracts are mirrored cleanly: `TriageLevel` / `VitalSigns` / `TriageAssessment` / `HealthResponse`, `LocationContextResponse` / `LocationContextUpdate` / `HazardMultipliers`, `TelemetryIngestRequest` / `TelemetryIngestResponse` / `ImageMetadata`, `AstronautBodyStatusResponse` / `AnatomicalZoneStatusBackend`, `TrendAnalysisResponse`, `KnowledgeSearchResponse` / `KnowledgeDocument`, `AIChatRequest` / `AIChatResponse`, `TTSRequest` / `TTSResponse` / `VisemeCue`, `GamificationStatusResponse` / `CheckupCompleteResponse`, `TelemedicineSyncQueueResponse` / `TelemedicineFlushResponse`, and `DatabaseSnapshotRestoreResponse`.
+- **Explorer model** — `ZoneId` (`head|chest|spine|limbs|gut|skin`), `BodyZone` (status, `uiToken`, vitals, `partIds`, 3D `position`, `highLevel`, `technical`, `selfExamSteps`, `recommendedCountermeasures`, `activeRisks`), `CrewMember` (zones, biometrics, risks, protocols, checks, readiness, overall status), `ViewMode` (`high_level|technical`).
+- **Drill-down anatomy** — `Organ` (model-local `position`/`rotation`, `shape: OrganShape` builder id, `side` ±1 for paired organs, optional `focusDistance` and `anim: heartbeat|breath|peristalsis`, vitals, description). `MODEL_GROUP_OFFSET` converts model-local ↔ world coords. Organ status is the organ's own: `organStatus()` = worst live zone reading among its vital keys + `ORGAN_WATCH` keys; `organVitals()` overlays the member's live zone readings on the curated values.
+- **Telemetry** — `TelemetryMetric` (`heart_rate`, `spo2`, `core_temp`, `exertion`, `radiation`, `fatigue`, `blood_sugar`, `bone_density`, `visual_acuity`, `mission_readiness`), `TelemetrySeries` (points + forecast with `lowerCi`/`upperCi` + `MissionEvent[]` + reference `band` + `thresholdWarning`/`warningDetails` + `highLevel`/`technical`).
+- **Location context** — `LocationProfile` (synced with backend `location_setting`, `gravityG`, `commLatencySec`, `offlineFallbackActive`, 5 `HazardWeights` + `HazardMultipliers`, `eclss` readings), `LocationId` (station/spacecraft/moon/mars/eva).
+- **AI companion contract** — `AssistantResponse` (`message`, `highLevel`, `technical`, `referencedZoneIds`, `actions: [{type:"focus",zoneId}]`, `insights`, `assumptions`, `mode`, `providerUsed`, `failoverReason`, `offlineMode`, `triageTier`, `retrievedKnowledge`, `recommendedActions`, `voicePayload`), `ChatMessage`.
+- **Ingest / gamification** — `BehaviorLog`, `LogAck`, `GamificationState` (12 skins across `common|rare|epic|legendary`, 5 backend `routine_tasks`, tokens, compliance %, equipped skin id), `SkinDef`.
 
-## Curated Datasets (`frontend/data/`)
+## Curated & Offline Datasets (`frontend/data/`)
 
-- `crew.ts` — crew members with zones, vitals, risks, insights, biometrics, checks. Curated/simulated.
+- `crew.ts` — baseline structural/biometric metadata + `ORGAN_WATCH` vital templates overlaid by `/api/v1/astronaut/body-status` in `rest` mode.
 - `suit-rig.ts` — EVA-suit skeleton (shoulders, arm abduction, hips; floor y = 0) shared by the suit geometry and the organ atlas.
-- `organs.ts` — `ORGANS` atlas (28 organs) + `organsOf(zoneId)` / `getOrgan(id)` / `zoneFraming(zoneId)` (skin → full-body framing) / `organStatus` / `organVitals`. Shared across crew; per-member status comes from that member's zone vitals. Convention: the model faces +z, so **patient-left = +x** (`side: 1`).
+- `organs.ts` — `ORGANS` atlas (28 organs) + `organsOf(zoneId)` / `getOrgan(id)` / `zoneFraming(zoneId)` / `organStatus` / `organVitals`. Shared across crew; per-member status comes from that member's live zone vitals. Convention: the model faces +z, so **patient-left = +x** (`side: 1`).
   - head: brain (hemispheres + gyri, cerebellum, brainstem), eyes ×2 (iris/pupil, optic nerve, recti)
   - chest: heart (4 chambers, aortic arch + branches, pulmonary trunk, venae cavae, coronaries), lungs ×2 (fissures, cardiac notch), trachea/bronchi, esophagus, diaphragm
   - spine: cervical / thoracic / lumbar columns (bodies, discs, arches, processes), pelvis/sacrum
   - limbs: upper arms ×2 (biceps + humerus), femurs ×2 (head, trochanter, condyles, patella)
   - gut: liver, gallbladder, stomach + duodenum, spleen, pancreas, kidneys ×2 (vessels, adrenal, ureter), small intestine, colon (haustra, appendix), bladder
   - skin: cross-section blocks (epidermis/dermis/hypodermis, follicles, sweat gland, vessels) on abdomen + L forearm
-- `mission.ts` — `LOCATION_PROFILES` (hazard weights + comm profiles) + mission day/phases.
-- `telemetry.ts` — deterministic time series + forecast + mission-event markers + reference bands.
-- `gamification.ts` — daily checklist + skin catalog.
+- `mission.ts` — `LOCATION_PROFILES` fallback presets matching the 5 backend `LocationSetting` profiles + mission day/phases.
+- `telemetry.ts` — deterministic mock time series + 95% CI forecast fallback + mission-event markers + reference bands for all 10 `TelemetryMetric` keys.
+- `gamification.ts` — 5 backend-aligned `DAILY_CHECKLIST` routine tasks (`task_*`), `SKIN_PALETTES` (`getSkinPalette`), and 12 `COMPANION_SKINS` across `common|rare|epic|legendary`.
 
-All datasets are deterministic and labelled simulated; the REST provider delegates to them for endpoints that don't exist yet (flagged via `partial: true`).
+In default `rest` mode (`partial: false`), live data comes from FastAPI across all 29 Postman Master requests; only mock-only metrics (`exertion`, `fatigue`) or explicit `DATA_PROVIDER=mock` / Vitest use the offline datasets above.
 
 ## Procedural EVA Suit (`components/three/suit-geometry.ts` + `astronaut-model.tsx`)
 

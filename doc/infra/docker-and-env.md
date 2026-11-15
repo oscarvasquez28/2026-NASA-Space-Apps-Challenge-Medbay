@@ -60,10 +60,10 @@ The repository defines **four separate container services** in [`docker-compose.
 | `FRONTEND_PORT` | `3000` | Compose | Host port mapped to frontend container `:8080` |
 | `PUBLIC_API_URL` | `http://localhost:8080` | Frontend | Public backend URL served to browsers via `GET /api/runtime-config` |
 | `ASTRONAUT_IDS` | `AST-01,AST-02,AST-03` | Frontend | Runtime astronaut selector list (no roster endpoint exists) |
-| `DATA_PROVIDER` | `mock` | Frontend | `mock` = deterministic simulated datasets (all labelled SIMULATED); `rest` = real `GET /health` + `POST /api/v1/triage/evaluate`, other features delegate to labelled mocks (`partial`) |
+| `DATA_PROVIDER` | `rest` | Frontend | `rest` = default full FastAPI Phase 1–4 integration (`partial: false`); `mock` = deterministic offline dataset for isolated dev/tests |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Frontend (build-time) | Inlined backend URL for local `next dev` / static builds (see `frontend/.env.example`) |
-| `NEXT_PUBLIC_ASTRONAUT_IDS` | `AST-01,AST-02,AST-03` | Frontend (build-time) | Inlined selector list for local `next dev` |
-| `NEXT_PUBLIC_DATA_PROVIDER` | `mock` | Frontend (build-time) | Inlined provider selection for local `next dev` |
+| `NEXT_PUBLIC_ASTRONAUT_IDS` | `AST-01,AST-02,AST-03,AST-04` | Frontend (build-time) | Inlined selector list for local `next dev` |
+| `NEXT_PUBLIC_DATA_PROVIDER` | `rest` | Frontend (build-time) | Inlined provider selection (`rest` default, `mock` override) for local `next dev` |
 | `TRIAGE_MODE` | `deterministic` | Backend | `deterministic` \| `hybrid` \| `ai_advisory` |
 | `GEMINI_API_KEY` | `""` | Backend | Optional Gemini API key (never commit real key) |
 | `VERTEX_AI_MODEL` | `gemini-2.5-flash` | Backend | Target Gemini / Vertex AI model identifier |

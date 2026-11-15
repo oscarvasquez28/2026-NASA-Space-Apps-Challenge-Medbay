@@ -7,5 +7,5 @@
 
 | Topic | Read this file | Mapped Code |
 | :--- | :--- | :--- |
-| Stack, routes, providers/stores/hooks, runtime config, API boundary & known contract gaps | [`architecture.md`](architecture.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` |
+| Stack, routes, providers/stores/hooks, runtime config & full 29-API backend integration | [`architecture.md`](architecture.md) | `frontend/app/`, `frontend/components/`, `frontend/services/`, `frontend/hooks/`, `frontend/stores/`, `frontend/lib/` |
 | MECHAVIS design blueprint this UI replicates | [`../mechavis-design-reference.md`](../mechavis-design-reference.md) | `frontend/app/globals.css`, `frontend/components/` |
