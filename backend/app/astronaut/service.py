@@ -104,6 +104,7 @@ async def evaluate_astronaut_body_status(
         linked_vitals={
             "visual_acuity_logmar": visual_acuity or 0.0,
             "co2_partial_pressure_mmhg": co2_val,
+            "core_temp_c": latest_telemetry.core_temp_c if latest_telemetry else 37.0,
             "head_symptoms": [s for s in symptoms if any(k in s.lower() for k in ["vision", "head", "eye", "dizz"])],
         },
         self_exam_steps=sans_res.self_exam_steps or [

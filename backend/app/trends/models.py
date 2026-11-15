@@ -17,6 +17,10 @@ class IndicatorName(str, Enum):
     BONE_MINERAL_DENSITY_T_SCORE = "bone_mineral_density_t_score"
     VISUAL_ACUITY_LOGMAR = "visual_acuity_logmar"
     MISSION_READINESS_SCORE = "mission_readiness_score"
+    SLEEP_HOURS = "sleep_hours"
+    SYSTOLIC_BP_MMHG = "systolic_bp_mmhg"
+    SUIT_PRESSURE_KPA = "suit_pressure_kpa"
+    CO2_PARTIAL_PRESSURE_MMHG = "co2_partial_pressure_mmhg"
 
 
 class TrendPoint(BaseModel):
