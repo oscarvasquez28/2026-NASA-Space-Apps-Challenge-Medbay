@@ -2,7 +2,8 @@
 
 import { useCallback, useMemo } from "react";
 
-import { dayKey, streakFor, useUserStore, WHEEL_EVERY_N } from "@/stores/user-store";
+import { useAppStore } from "@/stores/app-store";
+import { dayKey, earnedSpinsFor, streakFor, useUserStore } from "@/stores/user-store";
 
 const todayKey = () => dayKey(0);
 
@@ -50,13 +51,16 @@ export function useCheckIn() {
     [checkIns],
   );
 
+  // Runtime cadence (WHEEL_CADENCE_DAYS) — mirrors the backend rule.
+  const wheelEveryN = useAppStore((s) => s.wheelCadenceDays);
+
   const pendingSpins = useMemo(() => {
     if (!activeUser) return 0;
-    const earned = Math.floor(
-      checkIns.filter((c) => c.userId === activeUser.id).length / WHEEL_EVERY_N,
+    return Math.max(
+      0,
+      earnedSpinsFor(checkIns, activeUser.id, wheelEveryN) - wheelSpinsClaimed,
     );
-    return Math.max(0, earned - wheelSpinsClaimed);
-  }, [checkIns, activeUser, wheelSpinsClaimed]);
+  }, [checkIns, activeUser, wheelSpinsClaimed, wheelEveryN]);
 
   /**
    * Record today's check-in for `userId`. Returns whether it was a new
@@ -66,12 +70,11 @@ export function useCheckIn() {
     (userId: string): { isNewDay: boolean; earnedSpin: boolean } => {
       const isNewDay = recordCheckIn(userId);
       if (!isNewDay) return { isNewDay, earnedSpin: false };
-      const total = useUserStore
-        .getState()
-        .checkIns.filter((c) => c.userId === userId).length;
-      return { isNewDay, earnedSpin: total % WHEEL_EVERY_N === 0 };
+      // Milestone = today's check-in completed a wheelEveryN-day run.
+      const streak = streakFor(useUserStore.getState().checkIns, userId);
+      return { isNewDay, earnedSpin: streak > 0 && streak % wheelEveryN === 0 };
     },
-    [recordCheckIn],
+    [recordCheckIn, wheelEveryN],
   );
 
   const canViewUser = useCallback(
@@ -86,6 +89,7 @@ export function useCheckIn() {
     isMedic,
     todayDone,
     pendingSpins,
+    wheelEveryN,
     checkIn,
     claimWheelSpin,
     setActiveUser,

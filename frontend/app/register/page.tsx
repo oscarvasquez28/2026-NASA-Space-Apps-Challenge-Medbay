@@ -1,20 +1,24 @@
 "use client";
 
 /**
- * /register — enroll a console operator.
- * Face photo is mandatory (stored as a local dataURL for the future
- * visual-recognition adapter). The FIRST enrolled operator is locked to
- * the medic role — later enrollees may pick medic or normal user.
+ * /register — enroll a console operator (MEDBAY Screen 0, enrollment branch).
+ * Face photo is mandatory (stored as a face credential for the YuNet+SFace
+ * lock-screen identification). The FIRST enrolled operator is locked to the
+ * medic role — later enrollees may pick medic or normal user.
  */
 
 import { ScanFace, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { VisualAI } from "@/components/medbay/VisualAI";
 import { FaceCapture } from "@/components/ui/FaceCapture";
-import { Disclaimer, Eyebrow } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { registerOperator } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/config";
+import { cn } from "@/lib/utils";
 import { useUserStore } from "@/stores/user-store";
 import type { UserRole } from "@/types/health";
 
@@ -34,9 +38,7 @@ export default function RegisterPage() {
   const [astronautId, setAstronautId] = useState(
     `AST-U${String(users.length + 1).padStart(2, "0")}`,
   );
-  const [facePhoto, setFacePhoto] = useState<string | null>(
-    () => unrecognizedFacePhoto,
-  );
+  const [facePhoto, setFacePhoto] = useState<string | null>(() => unrecognizedFacePhoto);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,9 +80,7 @@ export default function RegisterPage() {
       router.push("/checkin");
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Could not save the operator profile.",
+        err instanceof Error ? err.message : "Could not save the operator profile.",
       );
     } finally {
       setSubmitting(false);
@@ -88,33 +88,59 @@ export default function RegisterPage() {
   };
 
   return (
-    <div style={{ padding: "22px 26px", maxWidth: 680 }}>
-      <Eyebrow>
-        {firstUser ? "Session / enroll first operator (medic)" : "Session / enroll operator"}
-      </Eyebrow>
+    <div className="flex h-full flex-col overflow-hidden px-8 py-6">
+      <h1 className="medbay-display text-[clamp(28px,3.6vw,48px)] tracking-widest">
+        Nice to meet you!
+      </h1>
+      <p className="medbay-micro mt-1 text-foreground/60">
+        {firstUser
+          ? "Enroll the first operator — this account is the Medical Professional"
+          : "Enroll a new crew operator"}
+      </p>
 
-      <form onSubmit={submit} className="panel panel-pad" style={{ marginTop: 14 }}>
-        <div className="form-grid">
-          <label className="form-row">
-            <span className="micro-8">NAME *</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Oscar Vásquez"
-              autoFocus
-            />
-          </label>
-          <label className="form-row">
-            <span className="micro-8">CALLSIGN</span>
-            <input
-              value={callsign}
-              onChange={(e) => setCallsign(e.target.value)}
-              placeholder="e.g. OV-01"
-            />
-          </label>
-          <label className="form-row">
-            <span className="micro-8">ROLE</span>
+      <form onSubmit={submit} className="mt-6 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-8">
+        {/* left: camera takes the lead, mascot in the corner */}
+        <div className="flex min-h-0 flex-col gap-4">
+          <div className="medbay-micro text-foreground/70">Face photo — used by the visual ID check-in</div>
+          <div className="relative min-h-0 flex-1 border border-input bg-black">
+            {facePhoto ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={facePhoto} alt="Enrolled face" className="size-full object-cover" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="absolute bottom-3 right-3"
+                  onClick={() => setFacePhoto(null)}
+                >
+                  Retake
+                </Button>
+              </>
+            ) : (
+              <FaceCapture mode="capture" onCapture={setFacePhoto} />
+            )}
+          </div>
+          <div className="pointer-events-none self-end">
+            <VisualAI variant="hero" size={110} />
+          </div>
+        </div>
+
+        {/* right: form fields */}
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+          <div className="grid gap-1.5">
+            <Label htmlFor="reg-name">Name *</Label>
+            <Input id="reg-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Oscar Vásquez" autoFocus />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="reg-callsign">Callsign</Label>
+            <Input id="reg-callsign" value={callsign} onChange={(e) => setCallsign(e.target.value)} placeholder="e.g. OV-01" />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="reg-role">Role</Label>
             <select
+              id="reg-role"
+              className="flex h-9 w-full border border-input bg-black px-3 text-sm"
               value={firstUser ? "medic" : role}
               disabled={firstUser}
               onChange={(e) => setRole(e.target.value as UserRole)}
@@ -123,87 +149,54 @@ export default function RegisterPage() {
               <option value="user">USER — sees own data only</option>
             </select>
             {firstUser && (
-              <span className="micro-8" style={{ color: "var(--accent)" }}>
-                FIRST ACCOUNT MUST BE FLIGHT SURGEON (MEDIC)
-              </span>
+              <span className="medbay-micro text-state">First account must be the Medical Professional</span>
             )}
-          </label>
-          <label className="form-row">
-            <span className="micro-8">ASTRONAUT ID (gamification key)</span>
-            <input
-              value={astronautId}
-              onChange={(e) => setAstronautId(e.target.value)}
-            />
-          </label>
-        </div>
-
-        <div style={{ marginTop: 18 }}>
-          <div className="micro-8" style={{ marginBottom: 8 }}>
-            FACE PHOTO * — used by the visual-ID check-in
           </div>
-          {facePhoto ? (
-            <div className="face-capture">
-              <div className="face-frame">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={facePhoto} alt="Enrolled face" className="face-media" />
-              </div>
-              <div className="face-actions">
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setFacePhoto(null)}
-                >
-                  Retake
-                </button>
-              </div>
-            </div>
-          ) : (
-            <FaceCapture mode="capture" onCapture={setFacePhoto} />
-          )}
-        </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="reg-astronaut">Astronaut ID (gamification key)</Label>
+            <Input id="reg-astronaut" value={astronautId} onChange={(e) => setAstronautId(e.target.value)} />
+          </div>
 
-        {error && (
-          <p className="micro" role="alert" style={{ marginTop: 12, color: "var(--status-critical)" }}>
-            {error}
+          {error && (
+            <p className="medbay-micro text-risk" role="alert">
+              {error}
+            </p>
+          )}
+
+          <div className="mt-2 flex flex-wrap gap-3">
+            <Button type="submit" disabled={submitting}>
+              <UserPlus size={12} />
+              {submitting ? "Saving face embedding…" : firstUser ? "Create medic account" : "Enroll operator"}
+            </Button>
+            {!firstUser && (
+              <Button type="button" variant="outline" onClick={() => router.back()}>
+                Cancel
+              </Button>
+            )}
+          </div>
+
+          <p className="medbay-micro mt-auto text-foreground/50">
+            BIOMETRIC PROFILE — operator metadata and the facial embedding are saved to
+            face_credentials for automatic lock-screen login. No external cloud vision API.
           </p>
-        )}
-
-        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            <UserPlus size={11} />{" "}
-            {submitting
-              ? "Saving face embedding…"
-              : firstUser
-                ? "Create medic account"
-                : "Enroll operator"}
-          </button>
-          {!firstUser && (
-            <button type="button" className="btn" onClick={() => router.back()}>
-              Cancel
-            </button>
-          )}
-        </div>
-
-        <div style={{ marginTop: 16 }}>
-          <Disclaimer>
-            BIOMETRIC PROFILE — operator metadata and local facial embedding are
-            saved to the backend face_credentials table for automatic lock-screen login.
-          </Disclaimer>
         </div>
       </form>
 
       {users.length > 0 && (
-        <div className="panel panel-pad" style={{ marginTop: 14 }}>
-          <Eyebrow>
-            <ScanFace size={10} style={{ verticalAlign: -1 }} /> Enrolled operators ({users.length})
-          </Eyebrow>
-          <div className="user-strip">
+        <div className="mt-4 shrink-0 border border-input p-3">
+          <div className="medbay-micro mb-2 flex items-center gap-2 text-foreground/70">
+            <ScanFace size={11} /> Enrolled operators ({users.length})
+          </div>
+          <div className="flex flex-wrap gap-2">
             {users.map((u) => (
-              <div key={u.id} className="user-chip">
+              <div
+                key={u.id}
+                className={cn("flex items-center gap-2 border border-input px-2.5 py-1.5")}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={u.facePhoto} alt="" className="user-thumb" />
-                <span>{u.name}</span>
-                <span className="micro-8">{u.role.toUpperCase()}</span>
+                <img src={u.facePhoto} alt="" className="size-6 rounded-full object-cover" />
+                <span className="medbay-display text-[11px]">{u.name}</span>
+                <span className="medbay-micro text-foreground/60">{u.role}</span>
               </div>
             ))}
           </div>

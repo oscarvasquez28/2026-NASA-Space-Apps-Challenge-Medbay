@@ -25,8 +25,9 @@ import {
   useViewerStore,
   type CameraPreset,
 } from "@/stores/viewer-store";
-import type { BodyZone, Vec3 } from "@/types/health";
+import type { BodyZone, LocationId, Vec3 } from "@/types/health";
 import { AstronautModel } from "./astronaut-model";
+import { GravityRig, LocationEnvironment } from "./environments/LocationEnvironment";
 
 /** 1 scene unit ≈ 100 cm — measure labels read in centimetres. */
 export const MODEL_CM_PER_UNIT = 100;
@@ -298,6 +299,8 @@ export interface CanvasSceneProps {
   children?: ReactNode;
   quality: "high" | "balanced";
   onContextLost?: () => void;
+  /** MEDBAY location environment; omit for the neutral technical grid. */
+  environment?: LocationId | null;
 }
 
 export default function CanvasScene({
@@ -305,10 +308,26 @@ export default function CanvasScene({
   children,
   quality,
   onContextLost,
+  environment,
 }: CanvasSceneProps) {
   const addMeasurePoint = useViewerStore((s) => s.addMeasurePoint);
+  const stepBack = useViewerStore((s) => s.stepBack);
+  const reduceMotion = useAppStore((s) => s.reduceMotion);
+  const downAt = useRef<[number, number] | null>(null);
 
   const onMeasure = (p: Vec3) => addMeasurePoint(p);
+
+  // Esc = one drill level up (organ → zone → body); no-op at body level.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      stepBack();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stepBack]);
 
   return (
     <Canvas
@@ -321,21 +340,35 @@ export default function CanvasScene({
           e.preventDefault();
           onContextLost?.();
         });
+        gl.domElement.addEventListener("pointerdown", (e) => {
+          downAt.current = [e.clientX, e.clientY];
+        });
+      }}
+      // Click on empty space = one drill level up. Guard against orbit drags:
+      // a release far from pointerdown is a camera move, not a back-click.
+      onPointerMissed={(e) => {
+        const d = downAt.current;
+        if (d && Math.hypot(e.clientX - d[0], e.clientY - d[1]) > 6) return;
+        stepBack();
       }}
     >
       <StudioLights />
 
-      <Grid
-        position={[0, -0.93, 0]}
-        args={[20, 20]}
-        cellSize={0.25}
-        cellColor="#22262c"
-        sectionSize={1.25}
-        sectionColor="#2c3038"
-        fadeDistance={14}
-        fadeStrength={2.4}
-        infiniteGrid
-      />
+      {environment ? (
+        <LocationEnvironment location={environment} lite={quality !== "high"} />
+      ) : (
+        <Grid
+          position={[0, -0.93, 0]}
+          args={[20, 20]}
+          cellSize={0.25}
+          cellColor="#22262c"
+          sectionSize={1.25}
+          sectionColor="#2c3038"
+          fadeDistance={14}
+          fadeStrength={2.4}
+          infiniteGrid
+        />
+      )}
       <ContactShadows
         position={[0, -0.92, 0]}
         opacity={0.55}
@@ -345,7 +378,13 @@ export default function CanvasScene({
         color="#000000"
       />
 
-      <AstronautModel zones={zones} onMeasure={onMeasure} />
+      {environment ? (
+        <GravityRig location={environment} reduceMotion={reduceMotion}>
+          <AstronautModel zones={zones} onMeasure={onMeasure} />
+        </GravityRig>
+      ) : (
+        <AstronautModel zones={zones} onMeasure={onMeasure} />
+      )}
       <SectionHelper />
       <MeasureLayer />
       {children}

@@ -10,9 +10,12 @@ import { BookOpen, Search } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useState } from "react";
 
-import { Eyebrow, StatusDot } from "@/components/ui/primitives";
+import { StatusDot } from "@/components/ui/primitives";
 import { ModelViewport } from "@/components/three/model-viewport";
 import { ChatPanel } from "@/components/widgets/ChatPanel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { useBodyStatus } from "@/hooks/useBodyStatus";
 import { useCheckIn } from "@/hooks/useCheckIn";
 import { useCrew } from "@/hooks/useCrew";
@@ -80,29 +83,12 @@ function MedicInner() {
   const technical = viewMode === "technical";
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        flex: "1 1 0%",
-        minHeight: 0,
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "14px 20px 10px",
-          borderBottom: "1px solid var(--line)",
-          flexWrap: "wrap",
-        }}
-      >
-        <Eyebrow>Medic AI / clinical copilot &amp; RAG knowledge base</Eyebrow>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex flex-wrap items-center gap-3 border-b border-input px-6 py-3">
+        <h1 className="medbay-display text-lg tracking-widest">Medic AI</h1>
+        <span className="medbay-micro text-foreground/60">clinical copilot · RAG knowledge base</span>
         <select
-          className="ctx-select"
-          style={{ marginLeft: "auto" }}
+          className="ml-auto flex h-9 border border-input bg-black px-3 text-sm"
           aria-label="Subject"
           value={crewId}
           onChange={(e) => setCrewId(e.target.value)}
@@ -115,42 +101,35 @@ function MedicInner() {
         </select>
       </div>
 
-      <div className="workspace-grid" style={{ flex: 1, minHeight: 0 }}>
+      <div className="grid min-h-0 flex-1 grid-cols-2">
         {/* model + mapped regions / RAG explorer */}
-        <div className="stage" style={{ borderRight: "1px solid var(--line)" }}>
-          <div className="stage-canvas" style={{ flex: "1 1 50%" }}>
+        <div className="flex min-h-0 flex-col border-r border-input">
+          <div className="relative min-h-0 flex-[1_1_50%] border-b border-input">
             {member ? (
               <ModelViewport zones={member.zones}>
-                <div className="viewer-scene-meta">CONTEXT LINKED</div>
-                <div className="viewer-bottom-left">
+                <div className="medbay-micro absolute left-3 top-3 text-foreground/50">CONTEXT LINKED</div>
+                <div className="medbay-micro absolute bottom-2 left-3 text-foreground/50">
                   the copilot focuses what it describes
                 </div>
               </ModelViewport>
             ) : (
-              <div className="fallback-figure mono" role="status">
-                LINKING SUBJECT…
+              <div className="medbay-micro grid h-full place-items-center text-foreground/60" role="status">
+                Linking subject…
               </div>
             )}
           </div>
 
-          <div
-            style={{
-              borderTop: "1px solid var(--line)",
-              padding: "10px 16px",
-              flex: "1 1 auto",
-              overflowY: "auto",
-            }}
-          >
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="mb-3 flex gap-2">
               <button
-                className="camera-preset"
+                className={cn("medbay-micro border px-3 py-1.5", leftTab === "zones" ? "border-state text-state" : "border-input")}
                 aria-pressed={leftTab === "zones"}
                 onClick={() => setLeftTab("zones")}
               >
-                MAPPED REGIONS
+                Mapped regions
               </button>
               <button
-                className="camera-preset"
+                className={cn("medbay-micro flex items-center gap-1.5 border px-3 py-1.5", leftTab === "rag" ? "border-state text-state" : "border-input")}
                 aria-pressed={leftTab === "rag"}
                 onClick={() => {
                   setLeftTab("rag");
@@ -159,8 +138,8 @@ function MedicInner() {
                   }
                 }}
               >
-                <BookOpen size={10} style={{ marginRight: 4 }} />
-                RAG KNOWLEDGE BASE
+                <BookOpen size={10} />
+                RAG knowledge base
               </button>
             </div>
 
@@ -169,12 +148,15 @@ function MedicInner() {
                 {member.zones.map((z, i) => (
                   <button
                     key={z.id}
-                    className="zone-list-item"
+                    className={cn(
+                      "flex w-full items-center gap-3 border-b border-input px-2 py-2 text-left",
+                      selectedZoneId === z.id && "bg-[var(--panel-tint)]",
+                    )}
                     aria-pressed={selectedZoneId === z.id}
                     onClick={() => focus(z)}
                   >
-                    <span className="zn">{String(i + 1).padStart(2, "0")}</span>
-                    <span className="zl">{z.name}</span>
+                    <span className="medbay-micro text-foreground/50">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="medbay-display flex-1 text-[13px]">{z.name}</span>
                     <StatusDot level={z.status} />
                   </button>
                 ))}
@@ -183,17 +165,10 @@ function MedicInner() {
 
             {leftTab === "rag" && (
               <div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 6,
-                    marginTop: 4,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <input
+                <div className="flex flex-wrap gap-2">
+                  <Input
                     type="text"
-                    style={{ flex: 1, minWidth: 140 }}
+                    className="min-w-[140px] flex-1"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => {
@@ -203,7 +178,7 @@ function MedicInner() {
                     aria-label="RAG query"
                   />
                   <select
-                    className="ctx-select"
+                    className="flex h-9 border border-input bg-black px-3 text-sm"
                     aria-label="Knowledge category"
                     value={category}
                     onChange={(e) => {
@@ -218,38 +193,30 @@ function MedicInner() {
                       </option>
                     ))}
                   </select>
-                  <button
-                    className="btn btn-primary"
-                    disabled={ragLoading}
-                    onClick={() => void runSearch(query, category, topK)}
-                  >
+                  <Button disabled={ragLoading} onClick={() => void runSearch(query, category, topK)}>
                     <Search size={10} />
                     {ragLoading ? "…" : "Search"}
-                  </button>
+                  </Button>
                 </div>
 
                 {ragError && (
-                  <p className="micro" style={{ marginTop: 8, color: "var(--status-critical)" }}>
-                    {ragError}
-                  </p>
+                  <p className="medbay-micro mt-2 text-risk">{ragError}</p>
                 )}
 
                 {ragData && (
-                  <div style={{ marginTop: 10 }}>
-                    <div className="micro-8" style={{ color: "var(--dim)" }}>
+                  <div className="mt-3">
+                    <div className="medbay-micro text-foreground/60">
                       {ragData.embedding_provider} · {ragData.total_chunks} total chunks ·{" "}
                       {technical ? ragData.technical : ragData.high_level}
                     </div>
                     {ragData.results.map((doc) => (
-                      <div key={doc.chunk_key} className="callout" style={{ marginTop: 8 }}>
-                        <div className="micro-8" style={{ color: "var(--accent)" }}>
+                      <div key={doc.chunk_key} className="mt-2 border border-input p-3">
+                        <div className="medbay-micro text-state">
                           {doc.category} · sim {(doc.similarity_score ?? doc.score).toFixed(3)} ·{" "}
                           {doc.source_reference}
                         </div>
-                        <div style={{ fontSize: 12, fontWeight: 500, marginTop: 3 }}>
-                          {doc.title}
-                        </div>
-                        <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, lineHeight: 1.5 }}>
+                        <div className="medbay-display mt-1 text-[13px]">{doc.title}</div>
+                        <p className="mt-1 text-[11px] leading-relaxed text-foreground/70">
                           {technical ? doc.content_technical : doc.content_high_level}
                         </p>
                       </div>
@@ -262,7 +229,7 @@ function MedicInner() {
         </div>
 
         {/* chat */}
-        <div style={{ minHeight: 0, borderLeft: "1px solid var(--line)" }}>
+        <div className="min-h-0">
           {member && <ChatPanel member={member} />}
         </div>
       </div>

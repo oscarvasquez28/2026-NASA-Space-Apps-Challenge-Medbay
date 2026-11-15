@@ -136,7 +136,7 @@ describe("MockHealthDataProvider", () => {
 
   it("exposes location profiles with hazard + comm context", async () => {
     const locations = await provider.getLocations();
-    expect(locations.length).toBeGreaterThanOrEqual(4);
+    expect(locations.length).toBe(3);
     for (const loc of locations) {
       const profile = await provider.getLocationProfile(loc.id);
       expect(profile.commLatencySec).toBeGreaterThanOrEqual(0);

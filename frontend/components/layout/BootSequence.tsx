@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "@/stores/app-store";
 
 const BOOT_LINES = [
-  "ASTROLAB / HEALTH MONITORING SYSTEM",
+  "MEDBAY / HEALTH MONITORING SYSTEM",
   "INITIALIZING TELEMETRY LINK…",
   "LOADING CREW DATASETS…",
   "CALIBRATING ZONE GEOMETRY…",
@@ -60,7 +60,7 @@ export function BootSequence() {
         >
           <div className="boot-box">
             <div className="boot-title">
-              <span className="tiny-square" aria-hidden /> A/ ASTROLAB
+              <span className="tiny-square" aria-hidden /> M/ MEDBAY
             </div>
             <div className="boot-lines">
               {BOOT_LINES.slice(0, lines).map((l, i) => (

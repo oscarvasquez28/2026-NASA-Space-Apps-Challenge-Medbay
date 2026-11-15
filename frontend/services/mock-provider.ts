@@ -19,6 +19,7 @@ import {
   LOCATION_PROFILES,
 } from "@/data/mission";
 import { buildTelemetrySeries } from "@/data/telemetry";
+import { applySimToMember, applySimToSeries } from "./sim-progress";
 import type {
   AssistantRequest,
   HealthDataProvider,
@@ -287,9 +288,9 @@ function respond(
 const BACKEND_TO_FRONT_LOCATION: Record<string, LocationId> = {
   "Space Station [0g]": "station",
   "Spacecraft [0g Transit]": "spacecraft",
-  "Moon [1/6g]": "moon",
+  "Moon [1/6g]": "mars",
   "Mars [3/8g]": "mars",
-  "Rover / EVA": "eva",
+  "Rover / EVA": "mars",
 };
 
 const MOCK_RAG_DOCS: KnowledgeDocument[] = [
@@ -442,13 +443,13 @@ export class MockHealthDataProvider implements HealthDataProvider {
 
   async getCrew(): Promise<CrewMember[]> {
     await latency();
-    return crewFromOperators(userStore().users);
+    return crewFromOperators(userStore().users).map((m) => applySimToMember(m));
   }
 
   async getCrewMember(id: string): Promise<CrewMember | undefined> {
     await latency();
     const user = userStore().users.find((u) => u.astronautId === id);
-    return user ? crewMemberFromOperator(user) : undefined;
+    return user ? applySimToMember(crewMemberFromOperator(user)) : undefined;
   }
 
   async getLocations(): Promise<LocationProfile[]> {
@@ -510,7 +511,7 @@ export class MockHealthDataProvider implements HealthDataProvider {
     metric: TelemetryMetric,
   ): Promise<TelemetrySeries> {
     await latency();
-    return buildTelemetrySeries(crewId, metric);
+    return applySimToSeries(buildTelemetrySeries(crewId, metric));
   }
 
   async submitTelemetry(

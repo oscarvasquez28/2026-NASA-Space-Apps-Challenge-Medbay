@@ -53,6 +53,9 @@ export function baseZones(): BodyZone[] {
         vital("hrv", "HRV", 64, "ms", "NOMINAL", 3),
         vital("sleep_debt", "Sleep debt", 1.2, "h", "NOMINAL", 90),
         vital("cog_load", "Cognitive load", 38, "idx"),
+        vital("core_temp_c", "Core temp", 36.6, "°C"),
+        vital("visual_acuity_logmar", "Visual acuity", 0.0, "logMAR"),
+        vital("co2_partial_pressure_mmhg", "Cabin CO2", 3.0, "mmHg"),
       ],
     }),
     zone({
@@ -78,6 +81,7 @@ export function baseZones(): BodyZone[] {
       vitals: [
         vital("spinal_load", "Spinal load", 24, "idx", "NOMINAL", 12),
         vital("bone_marker", "Bone turnover", 0.9, "idx", "NOMINAL", 60),
+        vital("bone_mineral_density_t_score", "BMD T-score", -0.6, "T"),
       ],
     }),
     zone({
@@ -90,6 +94,7 @@ export function baseZones(): BodyZone[] {
       vitals: [
         vital("exertion", "Exertion", 41, "idx"),
         vital("grip", "Grip strength", 96, "%", "NOMINAL", 240),
+        vital("sleep_hours", "Sleep duration", 7.5, "h"),
       ],
     }),
     zone({
@@ -100,6 +105,7 @@ export function baseZones(): BodyZone[] {
         "Abdominal region — glucose, hydration and microbiome diversity markers.",
       status: "NOMINAL",
       vitals: [
+        vital("blood_sugar_mg_dl", "Blood glucose", 92, "mg/dL", "NOMINAL", 30),
         vital("glucose", "Glucose", 92, "mg/dL", "NOMINAL", 30),
         vital("microbiome", "Microbiome div.", 0.82, "idx", "NOMINAL", 480),
         vital("hydration", "Hydration", 91, "%", "NOMINAL", 45),
@@ -114,6 +120,7 @@ export function baseZones(): BodyZone[] {
       status: "NOMINAL",
       vitals: [
         vital("suit_pressure_kpa", "Suit pressure", 29.6, "kPa"),
+        vital("radiation_dose_msv", "Radiation dose", 0.5, "mSv", "NOMINAL", 5),
         vital("radiation_msv_hr", "Radiation", 0.021, "mSv/h", "NOMINAL", 5),
         vital("skin_temp", "Skin temp", 33.4, "°C", "NOMINAL", 8),
       ],

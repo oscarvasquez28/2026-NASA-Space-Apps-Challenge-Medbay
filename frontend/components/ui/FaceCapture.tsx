@@ -7,6 +7,8 @@
  */
 
 import { Camera, ImageUp, RefreshCw, ScanFace } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import {
   useCallback,
   useEffect,
@@ -14,7 +16,7 @@ import {
   useState,
 } from "react";
 
-type CamStatus = "idle" | "requesting" | "live" | "denied" | "unsupported";
+export type CamStatus = "idle" | "requesting" | "live" | "denied" | "unsupported";
 
 const MAX_EDGE = 360;
 const JPEG_QUALITY = 0.82;
@@ -23,8 +25,9 @@ function downscaleToDataUrl(
   source: HTMLVideoElement | HTMLImageElement,
   w: number,
   h: number,
+  maxEdge = MAX_EDGE,
 ): string {
-  const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+  const scale = Math.min(1, maxEdge / Math.max(w, h));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(w * scale);
   canvas.height = Math.round(h * scale);
@@ -38,17 +41,34 @@ export function FaceCapture({
   onScanComplete,
   autoStart = true,
   scanDurationMs = 1500,
+  maxEdge = MAX_EDGE,
+  onStatusChange,
+  captureLabel = "Capture",
+  className,
 }: {
   mode: "capture" | "scan";
   onCapture?: (dataUrl: string) => void;
   onScanComplete?: (capturedDataUrl?: string) => void;
   autoStart?: boolean;
   scanDurationMs?: number;
+  /** Longest edge of the emitted JPEG (face ID uses 360px; evidence more). */
+  maxEdge?: number;
+  onStatusChange?: (s: CamStatus) => void;
+  captureLabel?: string;
+  className?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = useState<CamStatus>("idle");
+  const [status, setStatusRaw] = useState<CamStatus>("idle");
+  const statusCb = useRef(onStatusChange);
+  useEffect(() => {
+    statusCb.current = onStatusChange;
+  }, [onStatusChange]);
+  const setStatus = useCallback((s: CamStatus) => {
+    setStatusRaw(s);
+    statusCb.current?.(s);
+  }, []);
   const [shot, setShot] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const scanned = useRef(false);
@@ -83,7 +103,7 @@ export function FaceCapture({
     } catch {
       setStatus("denied");
     }
-  }, [stop]);
+  }, [stop, setStatus]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -105,21 +125,21 @@ export function FaceCapture({
       const v = videoRef.current;
       let frameUrl: string | undefined;
       if (v && v.videoWidth > 0 && v.videoHeight > 0) {
-        frameUrl = downscaleToDataUrl(v, v.videoWidth, v.videoHeight);
+        frameUrl = downscaleToDataUrl(v, v.videoWidth, v.videoHeight, maxEdge);
       }
       setScanning(false);
       stop();
       onScanComplete?.(frameUrl);
     }, scanDurationMs);
-  }, [mode, scanDurationMs, onScanComplete, stop]);
+  }, [mode, scanDurationMs, onScanComplete, stop, maxEdge]);
 
   const capture = useCallback(() => {
     const v = videoRef.current;
     if (!v || !v.videoWidth) return;
-    const url = downscaleToDataUrl(v, v.videoWidth, v.videoHeight);
+    const url = downscaleToDataUrl(v, v.videoWidth, v.videoHeight, maxEdge);
     setShot(url);
     stop();
-  }, [stop]);
+  }, [stop, maxEdge]);
 
   const confirmShot = useCallback(() => {
     if (shot) onCapture?.(shot);
@@ -134,7 +154,7 @@ export function FaceCapture({
     (file: File) => {
       const img = new Image();
       img.onload = () => {
-        const url = downscaleToDataUrl(img, img.naturalWidth, img.naturalHeight);
+        const url = downscaleToDataUrl(img, img.naturalWidth, img.naturalHeight, maxEdge);
         URL.revokeObjectURL(img.src);
         setShot(url);
         stop();
@@ -147,11 +167,11 @@ export function FaceCapture({
       };
       img.src = URL.createObjectURL(file);
     },
-    [mode, onCapture, onScanComplete, stop],
+    [mode, onCapture, onScanComplete, stop, maxEdge],
   );
 
   return (
-    <div className="face-capture">
+    <div className={`face-capture${className ? ` ${className}` : ""}`}>
       <div className="face-frame">
         {/* HUD corner reticle */}
         <span className="face-corner tl" aria-hidden />
@@ -198,50 +218,47 @@ export function FaceCapture({
 
       <div className="face-actions">
         {mode === "capture" && !shot && status === "live" && (
-          <button type="button" className="btn btn-primary" onClick={capture}>
-            <Camera size={11} /> Capture
-          </button>
+          <Button type="button" onClick={capture}>
+            <Camera size={12} /> {captureLabel}
+          </Button>
         )}
         {shot && mode === "capture" && (
           <>
-            <button type="button" className="btn" onClick={retake}>
+            <Button type="button" variant="outline" size="sm" onClick={retake}>
               <RefreshCw size={11} /> Retake
-            </button>
-            <button type="button" className="btn btn-primary" onClick={confirmShot}>
+            </Button>
+            <Button type="button" onClick={confirmShot}>
               Use photo
-            </button>
+            </Button>
           </>
         )}
         {mode === "capture" && !shot && status !== "live" && status !== "requesting" && (
-          <button type="button" className="btn" onClick={() => void start()}>
+          <Button type="button" variant="outline" size="sm" onClick={() => void start()}>
             <Camera size={11} /> Retry camera
-          </button>
+          </Button>
         )}
         {mode === "capture" && (
-          <button
-            type="button"
-            className="btn"
+          <Button
+            type="button" variant="outline" size="sm"
             onClick={() => fileRef.current?.click()}
           >
             <ImageUp size={11} /> Upload
-          </button>
+          </Button>
         )}
         {mode === "scan" && scanning && (
           <span className="micro-8">VISUAL ID · ANALYZING FACE</span>
         )}
         {mode === "scan" && !scanning && (
-          <button
-            type="button"
-            className="btn"
+          <Button
+            type="button" variant="outline" size="sm"
             onClick={() => fileRef.current?.click()}
           >
             <ImageUp size={11} /> Upload photo
-          </button>
+          </Button>
         )}
         {mode === "scan" && (status === "denied" || status === "unsupported") && (
-          <button
-            type="button"
-            className="btn"
+          <Button
+            type="button" variant="outline" size="sm"
             onClick={() => {
               scanned.current = true;
               stop();
@@ -249,7 +266,7 @@ export function FaceCapture({
             }}
           >
             <ScanFace size={11} /> Login manually
-          </button>
+          </Button>
         )}
       </div>
 

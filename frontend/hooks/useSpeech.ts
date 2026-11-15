@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAppStore } from "@/stores/app-store";
+import { speechSignal } from "@/stores/companion-store";
 import type { BackendStatus, TTSResponse, ViewMode } from "@/types/health";
 import { useLocationContext } from "./useLocationContext";
 import { useProvider } from "./useProvider";
@@ -27,6 +28,39 @@ export interface SpeechAdapter {
   error: string | null;
   speak: (text: string, opts?: SpeakOptions) => Promise<TTSResponse | null>;
   cancel: () => void;
+}
+
+let audioCtx: AudioContext | null = null;
+let meterFrame = 0;
+
+/** Drive `speechSignal.level` from the playing element's RMS amplitude. */
+function meterAudio(audio: HTMLAudioElement): boolean {
+  try {
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return false;
+    audioCtx ??= new Ctx();
+    const source = audioCtx.createMediaElementSource(audio);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    const buf = new Uint8Array(analyser.fftSize);
+    cancelAnimationFrame(meterFrame);
+    const tick = () => {
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (const v of buf) sum += ((v - 128) / 128) ** 2;
+      speechSignal.level = Math.min(1, Math.sqrt(sum / buf.length) * 4);
+      if (!audio.paused && !audio.ended) meterFrame = requestAnimationFrame(tick);
+      else speechSignal.level = 0;
+    };
+    meterFrame = requestAnimationFrame(tick);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -65,6 +99,8 @@ export function useSpeech(): SpeechAdapter {
     setSpeaking(false);
     setLoading(false);
     setActiveViseme("rest");
+    speechSignal.speaking = false;
+    speechSignal.level = 0;
   }, []);
 
   useEffect(() => clearPlayback, [clearPlayback]);
@@ -75,6 +111,8 @@ export function useSpeech(): SpeechAdapter {
       for (const cue of cues) {
         const startTimer = window.setTimeout(() => {
           setActiveViseme(cue.viseme || "rest");
+          // Fallback amplitude when no analyser is metering real audio.
+          if (!audioRef.current) speechSignal.level = cue.viseme && cue.viseme !== "rest" ? 0.75 : 0.15;
         }, Math.max(0, cue.start_ms));
         timersRef.current.push(startTimer);
       }
@@ -85,6 +123,8 @@ export function useSpeech(): SpeechAdapter {
       const doneTimer = window.setTimeout(() => {
         setSpeaking(false);
         setActiveViseme("rest");
+        speechSignal.speaking = false;
+        speechSignal.level = 0;
       }, endMs + 80);
       timersRef.current.push(doneTimer);
     },
@@ -95,6 +135,7 @@ export function useSpeech(): SpeechAdapter {
     async (res: TTSResponse, fallbackText: string) => {
       setLastResponse(res);
       setSpeaking(true);
+      speechSignal.speaking = true;
       scheduleVisemes(res);
 
       let audioStarted = false;
@@ -104,10 +145,12 @@ export function useSpeech(): SpeechAdapter {
             `data:${res.mime_type || "audio/wav"};base64,${res.audio_base64}`,
           );
           audioRef.current = audio;
+          meterAudio(audio);
           await audio.play();
           audioStarted = true;
         } catch {
           audioStarted = false;
+          audioRef.current = null;
         }
       }
 

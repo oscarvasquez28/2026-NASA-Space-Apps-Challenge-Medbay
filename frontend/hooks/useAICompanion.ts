@@ -1,13 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useAppStore } from "@/stores/app-store";
-import type {
-  AssistantResponse,
-  ChatMessage,
-  ZoneId,
-} from "@/types/health";
+import { useCompanionStore } from "@/stores/companion-store";
+import type { AssistantResponse, ZoneId } from "@/types/health";
 import { useProvider } from "./useProvider";
 
 export interface SendChatOptions {
@@ -16,21 +13,30 @@ export interface SendChatOptions {
   diagnosticImageBase64?: string | null;
 }
 
+// Store actions are stable; reading them once at module scope is safe.
+const store = useCompanionStore.getState();
+
+let idSeq = 0;
+const nextId = () => `m${++idSeq}`;
+// Shared across hook instances so any surface can cancel the in-flight call.
+let seq = 0;
+let inflight: AbortController | null = null;
+
 /**
- * AI companion conversation state wired to POST /api/v1/ai/chat.
+ * AI companion conversation wired to POST /api/v1/ai/chat. State lives in the
+ * shared companion store (one thread per subject).
  */
 export function useAICompanion(crewId: string | undefined) {
   const provider = useProvider();
   const locationId = useAppStore((s) => s.locationId);
   const viewMode = useAppStore((s) => s.viewMode);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [thinking, setThinking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const seqRef = useRef(0);
-  const idRef = useRef(0);
+  const messages = useCompanionStore((s) => s.messages);
+  const thinking = useCompanionStore((s) => s.thinking);
+  const error = useCompanionStore((s) => s.error);
 
-  const nextId = () => `m${++idRef.current}`;
+  useEffect(() => {
+    if (crewId) store.bindCrew(crewId);
+  }, [crewId]);
 
   const send = useCallback(
     async (
@@ -40,22 +46,19 @@ export function useAICompanion(crewId: string | undefined) {
       opts?: SendChatOptions,
     ) => {
       if (!provider || !crewId || !prompt.trim()) return;
-      const seq = ++seqRef.current;
+      const mySeq = ++seq;
       const controller = new AbortController();
-      abortRef.current = controller;
+      inflight = controller;
 
-      setMessages((m) => [
-        ...m,
-        {
-          id: nextId(),
-          role: "user",
-          text: prompt.trim(),
-          contextZoneId: contextZoneId ?? undefined,
-          hasImage: Boolean(opts?.diagnosticImageBase64),
-        },
-      ]);
-      setThinking(true);
-      setError(null);
+      store.push({
+        id: nextId(),
+        role: "user",
+        text: prompt.trim(),
+        contextZoneId: contextZoneId ?? undefined,
+        hasImage: Boolean(opts?.diagnosticImageBase64),
+      });
+      store.setThinking(true);
+      store.setError(null);
 
       try {
         const response = await provider.ask(
@@ -71,36 +74,31 @@ export function useAICompanion(crewId: string | undefined) {
           },
           controller.signal,
         );
-        if (seq !== seqRef.current) return;
-        setMessages((m) => [
-          ...m,
-          { id: nextId(), role: "assistant", text: response.message, response },
-        ]);
+        if (mySeq !== seq) return;
+        store.push({ id: nextId(), role: "assistant", text: response.message, response });
+        store.setLastRoute(response.providerUsed ?? null, Boolean(response.offlineMode));
         onResponse?.(response);
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return;
-        if (seq !== seqRef.current) return;
-        setError(
-          e instanceof Error ? e.message : "Companion request failed.",
-        );
+        if (mySeq !== seq) return;
+        store.setError(e instanceof Error ? e.message : "Companion request failed.");
       } finally {
-        if (seq === seqRef.current) setThinking(false);
+        if (mySeq === seq) store.setThinking(false);
       }
     },
     [provider, crewId, locationId, viewMode],
   );
 
   const cancel = useCallback(() => {
-    seqRef.current++;
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setThinking(false);
+    seq++;
+    inflight?.abort();
+    inflight = null;
+    store.setThinking(false);
   }, []);
 
   const reset = useCallback(() => {
     cancel();
-    setMessages([]);
-    setError(null);
+    store.reset();
   }, [cancel]);
 
   return { messages, thinking, error, send, cancel, reset };

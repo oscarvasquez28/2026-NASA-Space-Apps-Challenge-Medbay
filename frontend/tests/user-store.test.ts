@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { pickSkinOfRarity, rollDrumRarity, DRUM_WEIGHTS } from "@/data/gamification";
-import { streakFor, useUserStore, userStore, WHEEL_EVERY_N } from "@/stores/user-store";
+import { earnedSpinsFor, streakFor, useUserStore, userStore, } from "@/stores/user-store";
 
 const PHOTO = "data:image/jpeg;base64,AAAA";
 
@@ -83,17 +83,29 @@ describe("daily check-in", () => {
 describe("prize drum roll", () => {
   beforeEach(resetStore);
 
-  it("earns a spin every WHEEL_EVERY_N check-ins", () => {
+  it("earns a spin per WHEEL_EVERY_N-day consecutive streak", () => {
     const u = userStore().addUser({ name: "Doc", facePhoto: PHOTO });
-    const ins = Array.from({ length: WHEEL_EVERY_N }, (_, i) => ({
-      userId: u.id,
-      day: dayKeyForTest(-i),
-      at: new Date().toISOString(),
-    }));
-    useUserStore.setState({ checkIns: ins });
-    const total = userStore().checkIns.filter((c) => c.userId === u.id).length;
-    expect(Math.floor(total / WHEEL_EVERY_N)).toBe(1);
-    expect(Math.floor((total - 1) / WHEEL_EVERY_N)).toBe(0);
+    const ins = (days: number[]) =>
+      days.map((i) => ({ userId: u.id, day: dayKeyForTest(-i), at: "" }));
+    // 6 consecutive days → no milestone yet
+    useUserStore.setState({ checkIns: ins([0, 1, 2, 3, 4, 5]) });
+    expect(earnedSpinsFor(userStore().checkIns, u.id)).toBe(0);
+    // 7 consecutive days → first weekly spin
+    useUserStore.setState({ checkIns: ins([0, 1, 2, 3, 4, 5, 6]) });
+    expect(earnedSpinsFor(userStore().checkIns, u.id)).toBe(1);
+    // 14 consecutive days → two weekly spins
+    useUserStore.setState({
+      checkIns: ins([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]),
+    });
+    expect(earnedSpinsFor(userStore().checkIns, u.id)).toBe(2);
+    // a gap resets the run: 8 scattered days with a hole earn nothing
+    useUserStore.setState({ checkIns: ins([0, 1, 2, 3, 5, 6, 7, 8]) });
+    expect(earnedSpinsFor(userStore().checkIns, u.id)).toBe(0);
+    // two separate 7-day runs both count
+    useUserStore.setState({
+      checkIns: ins([0, 1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14, 15, 16]),
+    });
+    expect(earnedSpinsFor(userStore().checkIns, u.id)).toBe(2);
   });
 
   it("rolls only common/rare/legendary and respects weights", () => {

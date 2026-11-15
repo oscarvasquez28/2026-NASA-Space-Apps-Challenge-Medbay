@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 
-import { Eyebrow, Disclaimer } from "@/components/ui/primitives";
+import { cn } from "@/lib/utils";
 import { ModelViewport } from "@/components/three/model-viewport";
 import { TrendsChart } from "@/components/widgets/TrendsChart";
 import { useBodyStatus } from "@/hooks/useBodyStatus";
@@ -24,6 +24,7 @@ import {
 import type { BodyZone, TelemetryMetric } from "@/types/health";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+
 
 const METRICS: { id: TelemetryMetric; label: string }[] = [
   { id: "heart_rate", label: "Heart rate" },
@@ -62,14 +63,15 @@ function TelemetryInner() {
   const latest = series?.points[series.points.length - 1];
 
   return (
-    <div style={{ padding: "22px 26px" }}>
+    <div className="flex h-full flex-col gap-4 overflow-y-auto px-6 py-5">
       {/* mode bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <Eyebrow>Analysis / conceptual overlays</Eyebrow>
-        <div className="view-toggle" role="group" aria-label="Overlay mode">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="medbay-display text-xl tracking-widest">Telemetry</h1>
+        <div className="flex border border-input" role="group" aria-label="Overlay mode">
           {OVERLAYS.map((o) => (
             <button
               key={o.id}
+              className={cn("medbay-micro px-3 py-2", overlay === o.id ? "bg-foreground text-black" : "hover:text-state")}
               aria-pressed={overlay === o.id}
               onClick={() => setOverlay(o.id)}
             >
@@ -77,57 +79,51 @@ function TelemetryInner() {
             </button>
           ))}
         </div>
-        <span className="micro-8" style={{ marginLeft: "auto" }}>
+        <span className="medbay-micro ml-auto text-foreground/60">
           {series?.indicator ? `TREND ENGINE · ${series.indicator}` : "TELEMETRY & 95% CI FORECAST"}
         </span>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(280px, 380px) 1fr",
-          gap: 14,
-          marginTop: 16,
-        }}
-      >
+      <div className="grid grid-cols-[minmax(280px,380px)_1fr] gap-4">
         {/* model panel */}
-        <div className="panel" style={{ position: "relative", minHeight: 380 }}>
+        <div className="relative min-h-[380px] overflow-hidden border border-input">
           {member ? (
             <ModelViewport zones={member.zones}>
-              <div className="viewer-scene-meta">
+              <div className="medbay-micro absolute left-3 top-3 text-foreground/50">
                 {overlay === "none" ? "STATUS TINT" : `${overlay.toUpperCase()} OVERLAY`}
               </div>
-              <div className="viewer-bottom-left">drag to orbit</div>
+              <div className="medbay-micro absolute bottom-2 left-3 text-foreground/50">drag to orbit</div>
             </ModelViewport>
           ) : (
-            <div className="fallback-figure mono" role="status">
-              LINKING SUBJECT…
+            <div className="medbay-micro grid h-full place-items-center text-foreground/60" role="status">
+              Linking subject…
             </div>
           )}
         </div>
 
         {/* metric panel */}
-        <div className="panel panel-pad">
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-            <Eyebrow>Subject {crewId}</Eyebrow>
-            <span className="micro-8" style={{ marginLeft: "auto" }}>
-              LAST SAMPLE {latest ? new Date(latest.t).toLocaleTimeString() : "—"}
+        <div className="border border-input p-4">
+          <div className="flex items-baseline gap-3">
+            <span className="medbay-micro text-foreground/60">Subject {crewId}</span>
+            <span className="medbay-micro ml-auto text-foreground/60">
+              Last sample {latest ? new Date(latest.t).toLocaleTimeString() : "—"}
             </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 14 }}>
-            <span style={{ fontSize: 40, fontWeight: 400, letterSpacing: "-1.5px" }}>
-              {latest?.value ?? "—"}
-            </span>
-            <span className="micro">{series?.unit}</span>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="medbay-display text-[40px] leading-none">{latest?.value ?? "—"}</span>
+            <span className="medbay-micro">{series?.unit}</span>
           </div>
 
           {/* metric selector */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 16 }}>
+          <div className="mt-4 flex flex-wrap gap-2">
             {METRICS.map((m) => (
               <button
                 key={m.id}
-                className="camera-preset"
+                className={cn(
+                  "medbay-micro border px-3 py-1.5",
+                  metric === m.id ? "border-state text-state" : "border-input hover:border-state",
+                )}
                 aria-pressed={metric === m.id}
                 onClick={() => setMetric(m.id)}
               >
@@ -138,17 +134,15 @@ function TelemetryInner() {
 
           {/* zones focus list */}
           {member && (
-            <div style={{ marginTop: 18 }}>
-              <Eyebrow>Focus a region</Eyebrow>
+            <div className="mt-5">
+              <div className="medbay-micro text-foreground/60">Focus a region</div>
               {member.zones
                 .filter((z) => z.status !== "NOMINAL")
                 .map((z) => (
                   <ZoneFocus key={z.id} zone={z} />
                 ))}
               {member.zones.every((z) => z.status === "NOMINAL") && (
-                <p className="micro-8" style={{ marginTop: 8 }}>
-                  ALL ZONES NOMINAL
-                </p>
+                <p className="medbay-micro mt-2 text-ok">ALL ZONES NOMINAL</p>
               )}
             </div>
           )}
@@ -156,22 +150,20 @@ function TelemetryInner() {
       </div>
 
       {/* chart row */}
-      <div className="panel panel-pad" style={{ marginTop: 14 }}>
+      <div className="border border-input p-4">
         {loading && (
-          <div className="empty-state mono" role="status">SAMPLING SERIES…</div>
+          <div className="medbay-micro text-foreground/60" role="status">Sampling series…</div>
         )}
         {error && !loading && (
-          <div className="empty-state" role="alert">{error}</div>
+          <div className="medbay-micro text-risk" role="alert">{error}</div>
         )}
         {series && !loading && (
           <TrendsChart series={series} viewMode={viewMode} height={280} />
         )}
-        <div style={{ marginTop: 14 }}>
-          <Disclaimer>
-            TIME-SERIES HISTORY, MISSION EVENT MARKERS, AND LINEAR FORECASTS
-            WITH 95% CONFIDENCE INTERVALS ARE SERVED FROM THE ACTIVE DATA PROVIDER.
-          </Disclaimer>
-        </div>
+        <p className="medbay-micro mt-3 text-foreground/45">
+          TIME-SERIES HISTORY, MISSION EVENT MARKERS, AND LINEAR FORECASTS WITH 95%
+          CONFIDENCE INTERVALS ARE SERVED FROM THE ACTIVE DATA PROVIDER.
+        </p>
       </div>
     </div>
   );
@@ -180,9 +172,9 @@ function TelemetryInner() {
 function ZoneFocus({ zone }: { zone: BodyZone }) {
   const focus = useViewerStore((s) => s.focus);
   return (
-    <button className="zone-list-item" onClick={() => focus(zone)}>
-      <span className="zl">{zone.name}</span>
-      <span className="micro-8">{zone.status}</span>
+    <button className="flex w-full items-center gap-3 border-b border-input px-2 py-2 text-left" onClick={() => focus(zone)}>
+      <span className="medbay-display flex-1 text-[13px]">{zone.name}</span>
+      <span className="medbay-micro">{zone.status}</span>
     </button>
   );
 }

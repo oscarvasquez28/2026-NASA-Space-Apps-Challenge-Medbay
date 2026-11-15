@@ -8,12 +8,11 @@ import { Radio, RefreshCw, Send } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
-import {
-  Disclaimer,
-  Eyebrow,
-  StatusChip,
-} from "@/components/ui/primitives";
+import { StatusChip } from "@/components/ui/primitives";
 import { TelemetryLogger } from "@/components/widgets/TelemetryLogger";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { useCheckIn } from "@/hooks/useCheckIn";
 import { useCrew } from "@/hooks/useCrew";
 import { useProvider } from "@/hooks/useProvider";
@@ -104,12 +103,12 @@ function LogInner() {
   const technical = viewMode === "technical";
 
   return (
-    <div style={{ padding: "22px 26px", display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <Eyebrow>Telemetry log / ingest console</Eyebrow>
+    <div className="flex h-full flex-col gap-4 overflow-y-auto px-6 py-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="medbay-display text-xl tracking-widest">Telemetry log</h1>
+        <span className="medbay-micro text-foreground/60">ingest console</span>
         <select
-          className="ctx-select"
-          style={{ marginLeft: "auto" }}
+          className="ml-auto flex h-9 border border-input bg-black px-3 text-sm"
           aria-label="Subject"
           value={crewId}
           onChange={(e) => setCrewId(e.target.value)}
@@ -125,157 +124,111 @@ function LogInner() {
       <TelemetryLogger crewId={crewId} onSubmitted={() => void loadQueue()} />
 
       {/* Tempus Pro Telemedicine Sync Queue */}
-      <div className="panel panel-pad">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <Radio size={14} style={{ color: "var(--accent)" }} />
-          <Eyebrow>Tempus Pro telemedicine sync queue (store-and-forward)</Eyebrow>
-          <span style={{ flex: 1 }} />
+      <div className="border border-input p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Radio size={14} className="text-state" />
+          <span className="medbay-micro">Tempus Pro telemedicine sync queue (store-and-forward)</span>
+          <span className="flex-1" />
           {queue && (
-            <span className="micro-8">
-              WINDOW {queue.comm_window_open ? "OPEN" : "BLACKOUT"} · LAT{" "}
-              {queue.earth_comm_latency_sec}s · PENDING {queue.pending_count} ·
-              TRANSMITTED {queue.transmitted_count}
+            <span className="medbay-micro text-foreground/60">
+              Window {queue.comm_window_open ? "OPEN" : "BLACKOUT"} · lat{" "}
+              {queue.earth_comm_latency_sec}s · pending {queue.pending_count} ·
+              transmitted {queue.transmitted_count}
             </span>
           )}
-          <button
-            className="btn"
-            onClick={() => void loadQueue()}
-            disabled={queueLoading || !provider}
-          >
+          <Button variant="outline" size="sm" onClick={() => void loadQueue()} disabled={queueLoading || !provider}>
             <RefreshCw size={11} />
-            Refresh Queue
-          </button>
+            Refresh queue
+          </Button>
         </div>
 
         {queue && (
-          <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+          <p className="mt-2 text-[13px] text-foreground/70">
             {technical ? queue.technical : queue.high_level}
           </p>
         )}
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            alignItems: "center",
-            marginTop: 12,
-          }}
-        >
-          <input
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Input
             type="text"
             aria-label="Ground station"
             value={groundStation}
             onChange={(e) => setGroundStation(e.target.value)}
             placeholder="MCC-Houston-DSN"
-            style={{ width: 200 }}
+            className="w-52"
           />
-          <button
-            className="btn btn-primary"
-            disabled={flushing || !provider}
-            onClick={() => void flushQueue(false)}
-          >
+          <Button disabled={flushing || !provider} onClick={() => void flushQueue(false)}>
             <Send size={11} />
-            {flushing ? "Relaying…" : "Flush Pending"}
-          </button>
-          <button
-            className="btn"
-            disabled={flushing || !provider}
-            onClick={() => void flushQueue(true)}
-          >
-            Force Flush (Override Blackout)
-          </button>
+            {flushing ? "Relaying…" : "Flush pending"}
+          </Button>
+          <Button variant="outline" disabled={flushing || !provider} onClick={() => void flushQueue(true)}>
+            Force flush (override blackout)
+          </Button>
         </div>
 
         {queueError && (
-          <p className="micro" role="alert" style={{ marginTop: 10, color: "var(--status-critical)" }}>
-            {queueError}
-          </p>
+          <p className="medbay-micro mt-3 text-risk" role="alert">{queueError}</p>
         )}
 
         {flushResult && (
-          <div className="callout" style={{ marginTop: 12 }} role="status">
-            <div className="micro-8" style={{ color: "var(--status-nominal)" }}>
-              FLUSH COMPLETE · {flushResult.flushed_count} PACKET(S) →{" "}
-              {flushResult.ground_station} · REMAINING{" "}
-              {flushResult.remaining_pending_count}
+          <div className="mt-3 border border-ok p-3" role="status">
+            <div className="medbay-micro text-ok">
+              Flush complete · {flushResult.flushed_count} packet(s) →{" "}
+              {flushResult.ground_station} · remaining {flushResult.remaining_pending_count}
             </div>
-            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+            <p className="mt-1 text-[12px] text-foreground/70">
               {technical ? flushResult.technical : flushResult.high_level}
             </p>
           </div>
         )}
 
         {queue && queue.packets.length > 0 ? (
-          <div style={{ overflowX: "auto", marginTop: 12 }}>
-            <table className="spec-table">
+          <div className="mt-3 overflow-x-auto">
+            <table className="medbay-copy w-full text-[13px]">
               <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Crew</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>Anomalies</th>
-                  <th>Time</th>
+                <tr className="medbay-micro text-foreground/60">
+                  <th className="pb-2 text-left font-normal">ID</th>
+                  <th className="pb-2 text-left font-normal">Crew</th>
+                  <th className="pb-2 text-left font-normal">Priority</th>
+                  <th className="pb-2 text-left font-normal">Status</th>
+                  <th className="pb-2 text-left font-normal">Anomalies</th>
+                  <th className="pb-2 text-left font-normal">Time</th>
                 </tr>
               </thead>
               <tbody>
                 {queue.packets.slice(0, 12).map((pkt) => (
-                  <tr key={pkt.packet_id}>
-                    <td>#{pkt.packet_id}</td>
-                    <td>{pkt.astronaut_id}</td>
-                    <td>
+                  <tr key={pkt.packet_id} className="border-t border-input">
+                    <td className="py-2">#{pkt.packet_id}</td>
+                    <td className="py-2">{pkt.astronaut_id}</td>
+                    <td className="py-2">
                       <StatusChip
                         level={
-                          pkt.priority === "CRITICAL"
-                            ? "CRITICAL"
-                            : pkt.priority === "HIGH"
-                              ? "CAUTION"
-                              : "NOMINAL"
+                          pkt.priority === "CRITICAL" ? "CRITICAL" : pkt.priority === "HIGH" ? "CAUTION" : "NOMINAL"
                         }
                       />
                     </td>
-                    <td>
-                      <span
-                        className="micro-8"
-                        style={{
-                          color:
-                            pkt.transmission_status === "transmitted"
-                              ? "var(--status-nominal)"
-                              : "var(--status-caution)",
-                        }}
-                      >
+                    <td className="py-2">
+                      <span className={cn("medbay-micro", pkt.transmission_status === "transmitted" ? "text-ok" : "text-risk")}>
                         {pkt.transmission_status.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ maxWidth: 320 }}>
-                      {pkt.anomaly_flags.join(", ") || "Standard packet"}
-                    </td>
-                    <td>{new Date(pkt.timestamp).toLocaleTimeString()}</td>
+                    <td className="max-w-[320px] py-2">{pkt.anomaly_flags.join(", ") || "Standard packet"}</td>
+                    <td className="py-2">{new Date(pkt.timestamp).toLocaleTimeString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="micro-8" style={{ marginTop: 12, color: "var(--dim)" }}>
-            {queueLoading ? "LOADING TELEMEDICINE QUEUE…" : "NO PACKETS IN QUEUE."}
+          <p className="medbay-micro mt-3 text-foreground/50">
+            {queueLoading ? "Loading telemedicine queue…" : "No packets in queue."}
           </p>
         )}
 
-        <div style={{ marginTop: 12 }}>
-          <Disclaimer>
-            Off-nominal triage events enqueue automatically for Earth Mission
-            Control store-and-forward delivery across high-latency/blackout links.
-          </Disclaimer>
-        </div>
+        <p className="medbay-micro mt-3 text-foreground/45">
+          Off-nominal triage events enqueue automatically for Earth Mission
+          Control store-and-forward delivery across high-latency/blackout links.
+        </p>
       </div>
     </div>
   );

@@ -70,6 +70,8 @@ interface ViewerActions {
   ) => void;
   setPreset: (p: CameraPreset) => void;
   reset: () => void;
+  /** Back one drill level: organ → its parent zone, zone → full body. */
+  stepBack: () => void;
   setExplode: (v: number) => void;
   toggleSection: () => void;
   setSectionAxis: (a: SectionAxis) => void;
@@ -171,6 +173,31 @@ function createViewerStore(): ViewerStore {
         ...initialState,
         resetRevision: s.resetRevision + 1,
       })),
+
+    stepBack: () =>
+      set((s) => {
+        if (s.selectedOrganId) {
+          // organ → zone: stay drilled on the parent zone's framing
+          const frame = s.selectedZoneId ? zoneFraming(s.selectedZoneId) : null;
+          return {
+            selectedOrganId: null,
+            focusDistance: frame ? frame.distance : 1.5,
+            focusPoint: frame
+              ? ([
+                  frame.center[0] + MODEL_GROUP_OFFSET[0],
+                  frame.center[1] + MODEL_GROUP_OFFSET[1],
+                  frame.center[2] + MODEL_GROUP_OFFSET[2],
+                ] as Vec3)
+              : s.focusPoint,
+            focusRevision: s.focusRevision + 1,
+          };
+        }
+        // zone → body: full reset (same fields reset() restores)
+        if (s.selectedZoneId) {
+          return { ...initialState, resetRevision: s.resetRevision + 1 };
+        }
+        return s;
+      }),
 
     setExplode: (explode) =>
       set({ explode, measureMode: false, section: false }),
@@ -278,4 +305,9 @@ export function useViewerApi(): ViewerStore {
 /** Dispatch a viewer command from anywhere (sidebar, palette…). */
 export function dispatchViewerCommand(cmd: string) {
   window.dispatchEvent(new CustomEvent(VIEWER_COMMAND_EVENT, { detail: cmd }));
+}
+
+/** Like useViewerApi, but returns null outside a <ViewerProvider>. */
+export function useOptionalViewerApi(): ViewerStore | null {
+  return useContext(ViewerContext);
 }

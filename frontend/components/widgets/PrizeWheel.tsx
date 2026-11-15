@@ -1,56 +1,54 @@
 "use client";
 
 /**
- * PrizeWheel — check-in reward drum (module G, local roll).
- * 12 segments labelled only COMMON / RARE / LEGENDARY; a weighted local roll
- * picks the rarity, then a skin of that tier from the companion catalog
- * (preferring locked ones). The drum lands on the rolled rarity — the
- * animation follows the result, never the other way around.
+ * PrizeWheel — WEEKLY CHECK IN BONUS (spec §2).
+ * Three tiers — COMMON 60 / RARE 30 / MYTHIC 10 — award a Visual AI Model
+ * skin (spec design/AI_Model.jpeg). "SPIN IT!" starts the drum; the reveal
+ * shows the unlocked mascot and the NEW SKIN indicator clears once the
+ * operator views it in the AI panel.
+ * The spin itself is consumed through POST /api/v1/auth/claim-wheel-spin
+ * (no skin_id — backend only tracks suit skins; mascot skins stay local).
  */
 
 import { AnimatePresence, motion } from "motion/react";
-import { Gift, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { MascotStage } from "@/components/mascot/MascotStage";
+import { NewSkinIcon } from "@/components/icons/medbay";
 import { Modal } from "@/components/ui/Modal";
-import { MicroLabel } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/button";
 import {
-  pickSkinOfRarity,
-  rollDrumRarity,
-  type DrumRarity,
-} from "@/data/gamification";
+  mascotForTier,
+  rollWheelTier,
+  type MascotRarity,
+  type MascotSkinDef,
+} from "@/data/mascots";
 import { useCheckIn } from "@/hooks/useCheckIn";
-import { claimOperatorWheelSpin, completeCheckup } from "@/lib/api";
+import { claimOperatorWheelSpin } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/config";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
-import { userStore } from "@/stores/user-store";
-import type { SkinDef } from "@/types/health";
+import { useUserStore } from "@/stores/user-store";
 
-const SEG_COUNT = 12;
+const SEG_COUNT = 10;
 const SEG_ANGLE = 360 / SEG_COUNT;
 const TURNS = 6;
-const SPIN_S = 4.2;
+const SPIN_S = 4.0;
 
-/** Visual mix on the drum: 6 common / 4 rare / 2 legendary wedges. */
-const SEGMENTS: DrumRarity[] = [
-  "common", "rare", "common", "common", "legendary", "common",
-  "rare", "common", "common", "legendary", "common", "rare",
+/** Drum mix matching the roll weights: 6 common / 3 rare / 1 mythic. */
+const SEGMENTS: MascotRarity[] = [
+  "common", "rare", "common", "common", "mythic", "common", "rare", "common", "common", "rare",
 ];
 
-const RARITY_FILL: Record<DrumRarity, string> = {
-  common: "rgba(139,173,250,0.10)",
-  rare: "rgba(139,173,250,0.38)",
-  legendary: "rgba(217,164,65,0.45)",
+const RARITY_COLOR: Record<MascotRarity, string> = {
+  common: "rgba(160,170,190,0.18)",
+  rare: "rgba(110,170,255,0.45)",
+  mythic: "rgba(255,190,60,0.5)",
 };
-const RARITY_STROKE: Record<DrumRarity, string> = {
-  common: "rgba(139,173,250,0.35)",
-  rare: "rgba(139,173,250,0.8)",
-  legendary: "rgba(217,164,65,0.9)",
-};
-const RARITY_LABEL: Record<DrumRarity, string> = {
-  common: "COMMON",
-  rare: "RARE",
-  legendary: "LEGENDARY",
+const RARITY_TEXT: Record<MascotRarity, string> = {
+  common: "rgba(220,226,238,0.85)",
+  rare: "rgba(140,190,255,0.95)",
+  mythic: "rgba(255,200,90,0.98)",
 };
 
 const R = 120;
@@ -69,30 +67,36 @@ function wedgePath(index: number): string {
 
 function labelPos(index: number): { x: number; y: number; deg: number } {
   const mid = ((index + 0.5) * SEG_ANGLE - 90) * (Math.PI / 180);
-  const r = R * 0.66;
-  return {
-    x: CX + r * Math.cos(mid),
-    y: CY + r * Math.sin(mid),
-    deg: (index + 0.5) * SEG_ANGLE,
-  };
+  const r = R * 0.74;
+  const deg = (index + 0.5) * SEG_ANGLE;
+  // Keep labels upright: flip the ones that would render upside-down.
+  const flipped = deg % 360 > 90 && deg % 360 < 270;
+  return { x: CX + r * Math.cos(mid), y: CY + r * Math.sin(mid), deg: deg + (flipped ? 180 : 0) };
+}
+
+/** Segment divider — thin radial tick between wedges for the drum look. */
+function dividerPath(index: number): string {
+  const a = ((index * SEG_ANGLE - 90) * Math.PI) / 180;
+  const x0 = CX + (R * 0.42) * Math.cos(a);
+  const y0 = CY + (R * 0.42) * Math.sin(a);
+  const x1 = CX + R * Math.cos(a);
+  const y1 = CY + R * Math.sin(a);
+  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)}`;
 }
 
 interface RolledPrize {
-  rarity: DrumRarity;
-  skin: SkinDef;
+  tier: MascotRarity;
+  skin: MascotSkinDef;
+  alreadyOwned: boolean;
   targetRotation: number;
 }
 
-function rollPrize(ownedIds: readonly string[]): RolledPrize {
-  const rarity = rollDrumRarity();
-  const skin = pickSkinOfRarity(rarity, ownedIds) ?? pickSkinOfRarity("common", [])!;
-  const candidates = SEGMENTS.map((s, i) => (s === rarity ? i : -1)).filter(
-    (i) => i >= 0,
-  );
-  const segIndex = candidates[Math.floor(Math.random() * candidates.length)];
-  // Pointer sits at 0° — bring the chosen segment's centre to the top.
-  const targetRotation = TURNS * 360 - (segIndex + 0.5) * SEG_ANGLE;
-  return { rarity, skin, targetRotation };
+function rollPrize(owned: string[]): RolledPrize {
+  const tier = rollWheelTier();
+  const skin = mascotForTier(tier);
+  const winnerIndex = SEGMENTS.findIndex((r) => r === tier);
+  const targetRotation = TURNS * 360 + (360 - (winnerIndex + 0.5) * SEG_ANGLE);
+  return { tier, skin, alreadyOwned: owned.includes(skin.id), targetRotation };
 }
 
 export function PrizeWheel({
@@ -102,94 +106,85 @@ export function PrizeWheel({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onClaimed?: (skin: SkinDef) => void;
+  onClaimed?: (skin: MascotSkinDef) => void;
 }) {
+  const everyN = useAppStore((s) => s.wheelCadenceDays);
+  // Spec cadence is 7 ("weekly"); test/dev environments may run a shorter cycle.
+  const title = everyN === 7 ? "WEEKLY CHECK IN BONUS" : "CHECK IN BONUS";
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="PRIZE DRUM / CHECK-IN REWARD">
-      {/* Mounts fresh per opening so the roll happens once, on open. */}
-      {open && <DrumContent onOpenChange={onOpenChange} onClaimed={onClaimed} />}
+    <Modal open={open} onOpenChange={onOpenChange} title={title}>
+      {open && <DrumContent onClaimed={onClaimed} onOpenChange={onOpenChange} />}
     </Modal>
   );
 }
 
 function DrumContent({
-  onOpenChange,
   onClaimed,
+  onOpenChange,
 }: {
-  onOpenChange: (o: boolean) => void;
-  onClaimed?: (skin: SkinDef) => void;
+  onClaimed?: (skin: MascotSkinDef) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const reduceMotion = useAppStore((s) => s.reduceMotion);
-  const ownedSkinIds = useAppStore((s) => s.ownedSkinIds);
-  const rewardSkin = useAppStore((s) => s.rewardSkin);
+  const everyN = useAppStore((s) => s.wheelCadenceDays);
   const { activeUser } = useCheckIn();
+  const extras = useUserStore((s) => (activeUser ? s.extras[activeUser.id] : undefined));
+  const unlockMascot = useUserStore((s) => s.unlockMascot);
 
-  const [prize] = useState<RolledPrize>(() => rollPrize(ownedSkinIds));
-  const [phase, setPhase] = useState<"spinning" | "reveal">(
-    reduceMotion ? "reveal" : "spinning",
+  const [prize] = useState<RolledPrize>(() => rollPrize(extras?.mascotSkins ?? []));
+  const [phase, setPhase] = useState<"idle" | "spinning" | "reveal">(
+    reduceMotion ? "reveal" : "idle",
   );
+  const [claimed, setClaimed] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
+
+  const spin = () => setPhase("spinning");
 
   const claim = () => {
-    rewardSkin(prize.skin.id);
+    if (claimed) return;
+    setClaimed(true);
+    if (activeUser) unlockMascot(activeUser.id, prize.skin.id);
     onClaimed?.(prize.skin);
     void getRuntimeConfig().then(async (cfg) => {
-      if (cfg.dataProvider !== "rest") return;
+      if (cfg.dataProvider !== "rest" || !activeUser) return;
       try {
-        if (activeUser) {
-          await claimOperatorWheelSpin({
-            user_id: activeUser.id,
-            unlocked_skin_id: prize.skin.id,
-            equip: true,
-          });
-        } else {
-          await completeCheckup({
-            astronaut_id: userStore().users[0]?.astronautId ?? "AST-U00",
-            completed_tasks: [],
-            perform_gachapon_roll: false,
-            unlock_skin_id: prize.skin.id,
-          });
-        }
+        // Consume the spin server-side; mascot skin IDs stay local-only.
+        await claimOperatorWheelSpin({ user_id: activeUser.id });
       } catch {
-        // Local skin unlock already applied; backend sync fails gracefully offline
+        // Local unlock already applied — backend sync fails gracefully offline.
       }
     });
-    onOpenChange(false);
+    // Brief beat so the "skin added" state lands, then close the modal.
+    closeTimer.current = setTimeout(() => onOpenChange?.(false), 700);
   };
 
   const wheel = useMemo(
     () => (
-      <svg viewBox="0 0 280 280" className="drum-svg" aria-hidden>
-        <circle
-          cx={CX}
-          cy={CY}
-          r={R + 14}
-          fill="none"
-          stroke="var(--line)"
-          strokeWidth="1"
-        />
-        <circle
-          cx={CX}
-          cy={CY}
-          r={R + 8}
-          fill="none"
-          stroke="var(--dim)"
-          strokeWidth="0.5"
-          strokeDasharray="2 4"
-        />
+      <svg viewBox="0 0 280 280" className="h-auto w-full" aria-hidden>
+        <circle cx={CX} cy={CY} r={R + 14} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
+        <circle cx={CX} cy={CY} r={R + 8} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" strokeDasharray="2 4" />
         <motion.g
           initial={{ rotate: 0 }}
-          animate={{ rotate: prize.targetRotation }}
+          animate={{ rotate: phase === "idle" ? 0 : prize.targetRotation }}
           transition={{ duration: SPIN_S, ease: [0.12, 0.65, 0.15, 1] }}
           style={{ transformOrigin: `${CX}px ${CY}px` }}
-          onAnimationComplete={() => setPhase("reveal")}
+          onAnimationComplete={() => phase === "spinning" && setPhase("reveal")}
         >
           {SEGMENTS.map((rarity, i) => (
             <g key={i}>
               <path
                 d={wedgePath(i)}
-                fill={RARITY_FILL[rarity]}
-                stroke={RARITY_STROKE[rarity]}
-                strokeWidth="0.8"
+                fill={RARITY_COLOR[rarity]}
+                stroke="rgba(255,255,255,0.14)"
+                strokeWidth="0.6"
+              />
+              <path
+                d={dividerPath(i)}
+                stroke="rgba(255,255,255,0.2)"
+                strokeWidth="0.7"
               />
               <text
                 x={labelPos(i).x}
@@ -197,105 +192,76 @@ function DrumContent({
                 textAnchor="middle"
                 dominantBaseline="middle"
                 transform={`rotate(${labelPos(i).deg} ${labelPos(i).x} ${labelPos(i).y})`}
-                className="drum-label"
-                fill={
-                  rarity === "legendary"
-                    ? "rgba(217,164,65,0.95)"
-                    : "var(--accent)"
-                }
+                style={{ font: "600 8px var(--font-mono), monospace", letterSpacing: "0.08em" }}
+                fill={RARITY_TEXT[rarity]}
               >
-                {RARITY_LABEL[rarity]}
+                {rarity.toUpperCase()}
               </text>
             </g>
           ))}
-          <circle
-            cx={CX}
-            cy={CY}
-            r={26}
-            fill="var(--panel-2)"
-            stroke="var(--accent)"
-            strokeWidth="1"
-          />
+          <circle cx={CX} cy={CY} r={26} fill="rgba(6,8,12,0.9)" stroke="var(--state)" strokeWidth="1" />
         </motion.g>
-        {/* pointer */}
-        <path
-          d={`M ${CX - 8} ${CY - R - 22} L ${CX + 8} ${CY - R - 22} L ${CX} ${CY - R - 6} Z`}
-          fill="var(--accent)"
-        />
-        <circle
-          cx={CX}
-          cy={CY}
-          r={10}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="0.8"
-        />
+        <path d={`M ${CX - 8} ${CY - R - 22} L ${CX + 8} ${CY - R - 22} L ${CX} ${CY - R - 6} Z`} fill="var(--state)" />
+        <circle cx={CX} cy={CY} r={10} fill="none" stroke="var(--state)" strokeWidth="0.8" />
       </svg>
     ),
-    [prize.targetRotation],
+    [prize.targetRotation, phase],
   );
 
   return (
-    <div style={{ padding: "18px 22px 22px" }}>
-      <AnimatePresence mode="wait">
-        {phase === "spinning" && (
-          <motion.div
-            key="drum"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.92 }}
-            style={{ textAlign: "center" }}
-          >
-            {wheel}
-            <MicroLabel>
-              <span style={{ display: "block", marginTop: 6 }}>
-                DRUM SPINNING…
-              </span>
-            </MicroLabel>
-          </motion.div>
-        )}
+    <div className="px-6 py-5">
+      <h2 className="medbay-display text-center text-2xl tracking-widest">
+        {everyN === 7 ? "Weekly check in bonus" : "Check in bonus"}
+      </h2>
+      <p className="medbay-micro mt-1 text-center text-foreground/60">
+        {everyN === 7
+          ? "One week of check-ins — one spin for a new Visual AI Model skin."
+          : `Every ${everyN === 1 ? "check-in" : `${everyN} check-in days`} earns a spin for a new Visual AI Model skin.`}
+      </p>
 
-        {phase === "reveal" && (
-          <motion.div
-            key={prize.skin.id}
-            className="gacha-card"
-            initial={{ scale: 0.7, opacity: 0, rotateX: 40 }}
-            animate={{ scale: 1, opacity: 1, rotateX: 0 }}
-            transition={{ type: "spring", stiffness: 220, damping: 18 }}
-          >
-            <div
-              className="skin-swatch"
-              style={{
-                background: `linear-gradient(140deg, ${prize.skin.palette.suit} 55%, ${prize.skin.palette.accent} 55%)`,
-              }}
-            />
-            <div className="micro-8" style={{ color: "var(--accent)" }}>
-              <Sparkles size={9} style={{ verticalAlign: -1 }} />{" "}
-              {RARITY_LABEL[prize.rarity]} TIER
-            </div>
-            <div style={{ fontSize: 17, fontWeight: 500, marginTop: 6 }}>
-              {prize.skin.name}
-            </div>
-            <p
-              style={{
-                fontSize: 11,
-                color: "var(--muted)",
-                marginTop: 8,
-                lineHeight: 1.7,
-              }}
+      <div className="relative mx-auto mt-4 w-[min(320px,72vw)]">
+        {wheel}
+        <AnimatePresence>
+          {phase === "reveal" && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute inset-0 grid place-items-center"
             >
-              {prize.skin.description}
-            </p>
-            <button
-              className="btn btn-primary"
-              onClick={claim}
-              style={{ marginTop: 14, width: "100%", justifyContent: "center" }}
-            >
-              <Gift size={11} /> Claim reward
-            </button>
-          </motion.div>
+              <div className="flex flex-col items-center gap-2 border border-state bg-black/95 px-6 py-5">
+                <MascotStage skin={prize.skin.id} emotion="happy" size={96} />
+                <span className="medbay-display text-sm uppercase tracking-widest">
+                  {prize.skin.name}
+                </span>
+                <span
+                  className={cn("medbay-micro")}
+                  style={{ color: RARITY_TEXT[prize.tier] }}
+                >
+                  {prize.tier} skin
+                </span>
+                {!prize.alreadyOwned && (
+                  <span className="flex items-center gap-1.5 text-[#ffd75e]">
+                    <NewSkinIcon size={14} />
+                    <span className="medbay-micro">New skin</span>
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="mt-5 flex justify-center">
+        {phase === "reveal" ? (
+          <Button size="lg" onClick={claim} disabled={claimed}>
+            {claimed ? "Skin added to your AI" : "Collect"}
+          </Button>
+        ) : (
+          <Button size="lg" onClick={spin} disabled={phase === "spinning"}>
+            {phase === "spinning" ? "Spinning…" : "SPIN IT!"}
+          </Button>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }

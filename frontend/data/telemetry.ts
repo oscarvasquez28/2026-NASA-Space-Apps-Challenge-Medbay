@@ -131,6 +131,42 @@ const METRIC_SPECS: Record<TelemetryMetric, MetricSpec> = {
     decimals: 1,
     band: { low: 75, high: 100, label: "ENGINE REFERENCE BAND" },
   },
+  sleep: {
+    label: "Sleep duration",
+    unit: "h",
+    base: 7.4,
+    drift: -0.01,
+    jitter: 0.5,
+    decimals: 1,
+    band: { low: 6, high: 10, label: "ENGINE REFERENCE BAND" },
+  },
+  systolic_bp: {
+    label: "Systolic blood pressure",
+    unit: "mmHg",
+    base: 118,
+    drift: 0.06,
+    jitter: 5,
+    decimals: 0,
+    band: { low: 90, high: 140, label: "ENGINE REFERENCE BAND" },
+  },
+  suit_pressure: {
+    label: "Suit pressure",
+    unit: "kPa",
+    base: 29.6,
+    drift: -0.004,
+    jitter: 0.5,
+    decimals: 1,
+    band: { low: 26, high: 34, label: "ENGINE REFERENCE BAND" },
+  },
+  cabin_co2: {
+    label: "Cabin CO2 partial pressure",
+    unit: "mmHg",
+    base: 3.1,
+    drift: 0.008,
+    jitter: 0.3,
+    decimals: 1,
+    band: { low: 0, high: 4, label: "SMAC REFERENCE BAND" },
+  },
 };
 
 export function buildTelemetrySeries(

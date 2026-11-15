@@ -1,0 +1,418 @@
+{
+  "tickMs": 5000,
+  "loop": true,
+  "description": "Demo arc: nominal \u2192 exertion spike \u2192 recovery. SIMULATED data \u2014 mock provider only, never certified medical telemetry. Zone vital keys match the backend body-status linked_vitals vocabulary.",
+  "steps": [
+    {
+      "note": "Nominal baseline",
+      "zones": {
+        "head": {
+          "status": "NOMINAL",
+          "vitals": {
+            "hrv": 64,
+            "sleep_debt": 1.2,
+            "cog_load": 38,
+            "core_temp_c": 36.6,
+            "visual_acuity_logmar": 0.0,
+            "co2_partial_pressure_mmhg": 3.0
+          }
+        },
+        "chest": {
+          "status": "NOMINAL",
+          "vitals": {
+            "heart_rate_bpm": 71,
+            "spo2_percent": 98.4,
+            "systolic_bp_mmhg": 118
+          }
+        },
+        "spine": {
+          "status": "NOMINAL",
+          "vitals": {
+            "spinal_load": 24,
+            "bone_marker": 0.9,
+            "bone_mineral_density_t_score": -0.6
+          }
+        },
+        "limbs": {
+          "status": "NOMINAL",
+          "vitals": {
+            "exertion": 41,
+            "grip": 96,
+            "sleep_hours": 7.5
+          }
+        },
+        "gut": {
+          "status": "NOMINAL",
+          "vitals": {
+            "blood_sugar_mg_dl": 92,
+            "glucose": 92,
+            "microbiome": 0.82,
+            "hydration": 91
+          }
+        },
+        "skin": {
+          "status": "NOMINAL",
+          "vitals": {
+            "suit_pressure_kpa": 29.6,
+            "radiation_dose_msv": 0.5,
+            "radiation_msv_hr": 0.021,
+            "skin_temp": 33.4
+          }
+        }
+      },
+      "telemetry": {
+        "heart_rate": 71,
+        "spo2": 98.4,
+        "core_temp": 36.6,
+        "blood_sugar": 92,
+        "exertion": 41,
+        "fatigue": 33,
+        "sleep": 7.5,
+        "systolic_bp": 118,
+        "suit_pressure": 29.6,
+        "cabin_co2": 3.0
+      }
+    },
+    {
+      "note": "Exercise block begins",
+      "zones": {
+        "head": {
+          "status": "NOMINAL",
+          "vitals": {
+            "core_temp_c": 36.8,
+            "co2_partial_pressure_mmhg": 3.4
+          }
+        },
+        "chest": {
+          "status": "NOMINAL",
+          "vitals": {
+            "heart_rate_bpm": 96,
+            "spo2_percent": 97.9,
+            "systolic_bp_mmhg": 126
+          }
+        },
+        "limbs": {
+          "status": "NOMINAL",
+          "vitals": {
+            "exertion": 68,
+            "grip": 95,
+            "sleep_hours": 7.2
+          }
+        },
+        "gut": {
+          "status": "NOMINAL",
+          "vitals": {
+            "blood_sugar_mg_dl": 96,
+            "glucose": 96,
+            "hydration": 88
+          }
+        },
+        "skin": {
+          "status": "NOMINAL",
+          "vitals": {
+            "radiation_dose_msv": 0.52,
+            "skin_temp": 33.9
+          }
+        }
+      },
+      "telemetry": {
+        "heart_rate": 96,
+        "spo2": 97.9,
+        "core_temp": 36.8,
+        "blood_sugar": 96,
+        "exertion": 68,
+        "fatigue": 38,
+        "sleep": 7.2,
+        "systolic_bp": 126,
+        "suit_pressure": 29.6,
+        "cabin_co2": 3.4
+      }
+    },
+    {
+      "note": "Heavy exertion \u2014 cardio caution",
+      "zones": {
+        "head": {
+          "status": "NOMINAL",
+          "vitals": {
+            "hrv": 48,
+            "cog_load": 52,
+            "core_temp_c": 37.2,
+            "co2_partial_pressure_mmhg": 4.1
+          }
+        },
+        "chest": {
+          "status": "CAUTION",
+          "vitals": {
+            "heart_rate_bpm": 119,
+            "spo2_percent": 96.1,
+            "systolic_bp_mmhg": 138
+          }
+        },
+        "limbs": {
+          "status": "CAUTION",
+          "vitals": {
+            "exertion": 84,
+            "grip": 93,
+            "sleep_hours": 6.8
+          }
+        },
+        "gut": {
+          "status": "NOMINAL",
+          "vitals": {
+            "blood_sugar_mg_dl": 104,
+            "glucose": 104,
+            "hydration": 82
+          }
+        },
+        "skin": {
+          "status": "NOMINAL",
+          "vitals": {
+            "radiation_dose_msv": 0.55,
+            "skin_temp": 34.6
+          }
+        }
+      },
+      "telemetry": {
+        "heart_rate": 119,
+        "spo2": 96.1,
+        "core_temp": 37.2,
+        "blood_sugar": 104,
+        "exertion": 84,
+        "fatigue": 52,
+        "sleep": 6.8,
+        "systolic_bp": 138,
+        "suit_pressure": 29.4,
+        "cabin_co2": 4.1
+      }
+    },
+    {
+      "note": "Overexertion peak \u2014 SpO2 drop",
+      "zones": {
+        "head": {
+          "status": "CAUTION",
+          "vitals": {
+            "hrv": 36,
+            "cog_load": 61,
+            "core_temp_c": 37.9,
+            "visual_acuity_logmar": 0.14,
+            "co2_partial_pressure_mmhg": 4.8
+          }
+        },
+        "chest": {
+          "status": "URGENT",
+          "vitals": {
+            "heart_rate_bpm": 132,
+            "spo2_percent": 93.6,
+            "systolic_bp_mmhg": 149
+          }
+        },
+        "limbs": {
+          "status": "CAUTION",
+          "vitals": {
+            "exertion": 92,
+            "grip": 90,
+            "sleep_hours": 6.1
+          }
+        },
+        "gut": {
+          "status": "CAUTION",
+          "vitals": {
+            "blood_sugar_mg_dl": 118,
+            "glucose": 118,
+            "hydration": 76
+          }
+        },
+        "skin": {
+          "status": "NOMINAL",
+          "vitals": {
+            "radiation_dose_msv": 0.58,
+            "skin_temp": 35.1
+          }
+        }
+      },
+      "telemetry": {
+        "heart_rate": 132,
+        "spo2": 93.6,
+        "core_temp": 37.9,
+        "blood_sugar": 118,
+        "exertion": 92,
+        "fatigue": 63,
+        "sleep": 6.1,
+        "systolic_bp": 149,
+        "suit_pressure": 29.1,
+        "cabin_co2": 4.8
+      }
+    },
+    {
+      "note": "Cool-down initiated",
+      "zones": {
+        "head": {
+          "status": "CAUTION",
+          "vitals": {
+            "hrv": 41,
+            "cog_load": 55,
+            "core_temp_c": 37.4,
+            "visual_acuity_logmar": 0.08,
+            "co2_partial_pressure_mmhg": 4.2
+          }
+        },
+        "chest": {
+          "status": "CAUTION",
+          "vitals": {
+            "heart_rate_bpm": 118,
+            "spo2_percent": 95.4,
+            "systolic_bp_mmhg": 141
+          }
+        },
+        "limbs": {
+          "status": "CAUTION",
+          "vitals": {
+            "exertion": 74,
+            "grip": 92,
+            "sleep_hours": 6.4
+          }
+        },
+        "gut": {
+          "status": "NOMINAL",
+          "vitals": {
+            "blood_sugar_mg_dl": 108,
+            "glucose": 108,
+            "hydration": 79
+          }
+        },
+        "skin": {
+          "status": "NOMINAL",
+          "vitals": {
+            "radiation_dose_msv": 0.6,
+            "skin_temp": 34.8
+          }
+        }
+      },
+      "telemetry": {
+        "heart_rate": 118,
+        "spo2": 95.4,
+        "core_temp": 37.4,
+        "blood_sugar": 108,
+        "exertion": 74,
+        "fatigue": 66,
+        "sleep": 6.4,
+        "systolic_bp": 141,
+        "suit_pressure": 29.3,
+        "cabin_co2": 4.2
+      }
+    },
+    {
+      "note": "Recovery \u2014 vitals normalizing",
+      "zones": {
+        "head": {
+          "status": "NOMINAL",
+          "vitals": {
+            "hrv": 52,
+            "cog_load": 47,
+            "core_temp_c": 37.0,
+            "visual_acuity_logmar": 0.02,
+            "co2_partial_pressure_mmhg": 3.6
+          }
+        },
+        "chest": {
+          "status": "NOMINAL",
+          "vitals": {
+            "heart_rate_bpm": 97,
+            "spo2_percent": 97.2,
+            "systolic_bp_mmhg": 128
+          }
+        },
+        "limbs": {
+          "status": "NOMINAL",
+          "vitals": {
+            "exertion": 55,
+            "grip": 94,
+            "sleep_hours": 7.0
+          }
+        },
+        "gut": {
+          "status": "NOMINAL",
+          "vitals": {
+            "blood_sugar_mg_dl": 101,
+            "glucose": 101,
+            "hydration": 84
+          }
+        },
+        "skin": {
+          "status": "NOMINAL",
+          "vitals": {
+            "radiation_dose_msv": 0.62,
+            "skin_temp": 34.2
+          }
+        }
+      },
+      "telemetry": {
+        "heart_rate": 97,
+        "spo2": 97.2,
+        "core_temp": 37.0,
+        "blood_sugar": 101,
+        "exertion": 55,
+        "fatigue": 58,
+        "sleep": 7.0,
+        "systolic_bp": 128,
+        "suit_pressure": 29.5,
+        "cabin_co2": 3.6
+      }
+    },
+    {
+      "note": "Recovered \u2014 mild residual fatigue",
+      "zones": {
+        "head": {
+          "status": "NOMINAL",
+          "vitals": {
+            "core_temp_c": 36.7,
+            "co2_partial_pressure_mmhg": 3.1
+          }
+        },
+        "chest": {
+          "status": "NOMINAL",
+          "vitals": {
+            "heart_rate_bpm": 78,
+            "spo2_percent": 98.0,
+            "systolic_bp_mmhg": 121
+          }
+        },
+        "limbs": {
+          "status": "NOMINAL",
+          "vitals": {
+            "exertion": 44,
+            "grip": 95,
+            "sleep_hours": 7.4
+          }
+        },
+        "gut": {
+          "status": "NOMINAL",
+          "vitals": {
+            "blood_sugar_mg_dl": 95,
+            "glucose": 95,
+            "hydration": 89
+          }
+        },
+        "skin": {
+          "status": "NOMINAL",
+          "vitals": {
+            "radiation_dose_msv": 0.64,
+            "skin_temp": 33.7
+          }
+        }
+      },
+      "telemetry": {
+        "heart_rate": 78,
+        "spo2": 98.0,
+        "core_temp": 36.7,
+        "blood_sugar": 95,
+        "exertion": 44,
+        "fatigue": 44,
+        "sleep": 7.4,
+        "systolic_bp": 121,
+        "suit_pressure": 29.6,
+        "cabin_co2": 3.1
+      }
+    }
+  ]
+}

@@ -14,7 +14,7 @@ import {
 } from "react";
 
 import { useAppStore } from "@/stores/app-store";
-import type { BodyZone, ZoneId } from "@/types/health";
+import type { BodyZone, LocationId, ZoneId } from "@/types/health";
 import { FallbackFigure } from "./fallback-figure";
 import type { CanvasSceneProps } from "./canvas-scene";
 
@@ -63,12 +63,15 @@ interface ModelViewportProps {
   children?: ReactNode;
   /** Optional overlay rendered inside the canvas (Html, markers…). */
   canvasOverlays?: ReactNode;
+  /** MEDBAY location environment rendered around the astronaut. */
+  environment?: LocationId | null;
 }
 
 export function ModelViewport({
   zones,
   children,
   canvasOverlays,
+  environment,
 }: ModelViewportProps) {
   const quality = useAppStore((s) => s.quality);
   const hydrated = useAppStore((s) => s.hydrated);
@@ -111,6 +114,7 @@ export function ModelViewport({
             zones={zones}
             quality={hydrated ? quality : "high"}
             onContextLost={() => setContextLost((c) => c + 1)}
+            environment={environment}
           >
             {canvasOverlays}
           </CanvasScene>

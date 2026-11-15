@@ -1,47 +1,56 @@
 "use client";
 
 /**
- * /crew — crew roster explorer: search + status filter + cards with
- * shared-canvas 3D previews (single WebGL context via drei View).
+ * /crew — MEDBAY USERS browsing (spec §9): every enrolled operator as a
+ * colour-coded card (HEALTHY green / RISK yellow / CRITICAL red ring), a
+ * notification strip naming the most urgent case, search + filter, and a
+ * list/grid toggle. Cards link into the shared Astronaut View.
  */
 
-import { Search } from "lucide-react";
+import { BellIcon } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import {
-  Eyebrow,
-  StatusChip,
-  StatusDot,
-} from "@/components/ui/primitives";
-import {
-  GalleryPreview,
-  SharedGallery,
-} from "@/components/three/shared-gallery";
+import { AstronautIcon, GridViewIcon, ListViewIcon } from "@/components/icons/medbay";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useCrew } from "@/hooks/useCrew";
-import type { TriageLevel } from "@/types/health";
+import { crewNotification } from "@/lib/medbay-copy";
+import { cn } from "@/lib/utils";
+import type { CrewMember, TriageLevel } from "@/types/health";
 
 const FILTERS: { id: TriageLevel | "all"; label: string }[] = [
   { id: "all", label: "ALL" },
-  { id: "NOMINAL", label: "NOMINAL" },
+  { id: "NOMINAL", label: "HEALTHY" },
   { id: "CAUTION", label: "CAUTION" },
-  { id: "URGENT", label: "URGENT" },
+  { id: "URGENT", label: "RISK" },
   { id: "CRITICAL", label: "CRITICAL" },
 ];
 
 const ORDER: TriageLevel[] = ["NOMINAL", "CAUTION", "URGENT", "CRITICAL"];
 
+function worstOf(c: CrewMember) {
+  return [...c.zones].sort((a, b) => ORDER.indexOf(b.status) - ORDER.indexOf(a.status))[0];
+}
+
+function healthClass(status: TriageLevel) {
+  if (status === "CRITICAL") return "health-critical";
+  if (status === "NOMINAL") return "health-ok";
+  return "health-risk";
+}
+
 export default function CrewPage() {
   const { crew, loading, error } = useCrew();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
+  const [grid, setGrid] = useState(true);
+
+  const notification = useMemo(() => crewNotification(crew), [crew]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return crew.filter((c) => {
-      const worst = [...c.zones].sort(
-        (a, b) => ORDER.indexOf(b.status) - ORDER.indexOf(a.status),
-      )[0]?.status;
+      const worst = worstOf(c)?.status;
       if (filter !== "all" && worst !== filter) return false;
       if (!q) return true;
       return (
@@ -54,128 +63,129 @@ export default function CrewPage() {
   }, [crew, query, filter]);
 
   return (
-    <SharedGallery>
-      <div style={{ padding: "22px 26px" }}>
-        {/* header + search */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <Eyebrow>Crew roster / monitored subjects</Eyebrow>
-          <span className="micro-8" style={{ marginLeft: "auto" }}>
-            {loading ? "…" : `${filtered.length}/${crew.length} SHOWN`}
+    <div className="flex h-full flex-col gap-4 overflow-y-auto px-6 py-5">
+      {/* most-urgent notification strip (spec §9) */}
+      {notification && (
+        <Link
+          href={`/crew/${notification.member.id}`}
+          className="medbay-copy flex items-center gap-3 border border-risk bg-[color-mix(in_srgb,var(--medbay-risk)_15%,black)] px-4 py-3 text-[15px] hover:border-critical"
+        >
+          <BellIcon size={15} className="shrink-0 text-risk" />
+          <span>
+            {notification.message.lead}
+            <span className="text-risk">{notification.message.emphasis}</span>
+            {notification.message.tail}
           </span>
-        </div>
+          <span className="medbay-micro ml-auto">OPEN →</span>
+        </Link>
+      )}
 
-        <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 380 }}>
-            <Search
-              size={12}
-              style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--dim)" }}
-            />
-            <input
-              type="search"
-              placeholder="Search name, callsign, role…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search crew"
-              style={{ width: "100%", paddingLeft: 28 }}
-            />
-          </div>
-          <div className="view-toggle" role="group" aria-label="Status filter">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="medbay-display text-xl tracking-widest">Users</h1>
+        <span className="medbay-micro text-foreground/60">
+          {loading ? "…" : `${filtered.length}/${crew.length} shown`}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <Input
+            type="search"
+            placeholder="Search name, callsign…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search crew"
+            className="w-56"
+          />
+          <div className="flex border border-input" role="group" aria-label="Status filter">
             {FILTERS.map((f) => (
               <button
                 key={f.id}
                 aria-pressed={filter === f.id}
                 onClick={() => setFilter(f.id)}
+                className={cn(
+                  "medbay-micro px-3 py-2",
+                  filter === f.id ? "bg-foreground text-black" : "hover:text-state",
+                )}
               >
                 {f.label}
               </button>
             ))}
           </div>
-        </div>
-
-        {/* states */}
-        {loading && (
-          <div className="empty-state mono" role="status">LINKING CREW MANIFEST…</div>
-        )}
-        {error && !loading && (
-          <div className="empty-state" role="alert">
-            <div
-              className="crosshair mono"
-              style={{ display: "inline-block", padding: 24 }}
-            >
-              {error}
-            </div>
-          </div>
-        )}
-        {!loading && !error && filtered.length === 0 && (
-          <div className="empty-state">
-            <div
-              className="crosshair mono"
-              style={{ display: "inline-block", padding: 24 }}
-            >
-              NO SUBJECTS MATCH THE QUERY
-            </div>
-          </div>
-        )}
-
-        {/* cards */}
-        <div className="crew-grid" style={{ marginTop: 20 }}>
-          {filtered.map((c) => {
-            const worst = [...c.zones].sort(
-              (a, b) => ORDER.indexOf(b.status) - ORDER.indexOf(a.status),
-            )[0];
-            const flaggedCount = c.zones.filter((z) => z.status !== "NOMINAL").length;
-            return (
-              <Link key={c.id} href={`/crew/${c.id}`} className="card crew-card" style={{ display: "block" }}>
-                <div className="preview-box">
-                  <GalleryPreview zones={c.zones} />
-                  {c.facePhoto && (
-                    // eslint-disable-next-line @next/next/no-img-element -- enrollment capture is a dataURL
-                    <img
-                      src={c.facePhoto}
-                      alt={`${c.name} enrollment capture`}
-                      style={{
-                        position: "absolute",
-                        bottom: 8,
-                        left: 8,
-                        zIndex: 6,
-                        width: 34,
-                        height: 34,
-                        objectFit: "cover",
-                        borderRadius: "50%",
-                        border: "1px solid var(--accent)",
-                      }}
-                    />
-                  )}
-                  <div className="micro-8" style={{ position: "absolute", top: 8, left: 10, zIndex: 6 }}>
-                    {c.id} · {c.mission}
-                  </div>
-                  <div style={{ position: "absolute", top: 8, right: 10, zIndex: 6 }}>
-                    <StatusChip level={worst.status} />
-                  </div>
-                </div>
-                <div style={{ padding: "12px 14px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</span>
-                    <span className="micro-8">{c.callsign}</span>
-                  </div>
-                  <div className="micro-8" style={{ marginTop: 5, display: "flex", gap: 10 }}>
-                    <span>{c.role}</span>
-                    <span style={{ marginLeft: "auto" }}>
-                      RDY {c.readiness.score} · {flaggedCount} FLAGGED
-                    </span>
-                  </div>
-                  <div
-                    className="micro-8"
-                    style={{ marginTop: 8, color: "var(--accent)", display: "flex", alignItems: "center", gap: 6 }}
-                  >
-                    MONITOR <StatusDot level={worst.status} />
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={grid ? "Switch to list" : "Switch to grid"}
+            onClick={() => setGrid((g) => !g)}
+          >
+            {grid ? <ListViewIcon size={18} /> : <GridViewIcon size={18} />}
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/compare">Compare</Link>
+          </Button>
         </div>
       </div>
-    </SharedGallery>
+
+      {loading && <div className="medbay-micro text-foreground/60" role="status">Linking crew manifest…</div>}
+      {error && !loading && <div className="medbay-micro text-risk" role="alert">{error}</div>}
+      {!loading && !error && filtered.length === 0 && (
+        <div className="medbay-micro text-foreground/60">No subjects match the query</div>
+      )}
+
+      <div className={cn(grid ? "grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-4" : "flex flex-col gap-2")}>
+        {filtered.map((c) => {
+          const worst = worstOf(c);
+          const h = healthClass(worst.status);
+          return (
+            <Link
+              key={c.id}
+              href={`/crew/${c.id}`}
+              className={cn(
+                "medbay-surface group flex transition-all hover:-translate-y-0.5",
+                grid ? "flex-col" : "items-center gap-4 px-4 py-2",
+                h === "health-critical"
+                  ? "medbay-surface-critical hover:shadow-[0_10px_28px_rgba(0,0,0,0.55),0_0_18px_color-mix(in_srgb,var(--medbay-critical)_35%,transparent)]"
+                  : h === "health-risk"
+                    ? "medbay-surface-risk hover:shadow-[0_10px_28px_rgba(0,0,0,0.55),0_0_18px_color-mix(in_srgb,var(--medbay-risk)_35%,transparent)]"
+                    : "hover:border-state/60 hover:shadow-[0_10px_28px_rgba(0,0,0,0.55),0_0_18px_var(--accent-soft)]",
+              )}
+            >
+              <div
+                className={cn(
+                  "relative grid shrink-0 place-items-center overflow-hidden",
+                  grid ? "aspect-square w-full" : "size-14",
+                  h === "health-critical"
+                    ? "bg-[color-mix(in_srgb,var(--medbay-critical)_30%,black)]"
+                    : h === "health-risk"
+                      ? "bg-[color-mix(in_srgb,var(--medbay-risk)_30%,black)]"
+                      : "bg-[color-mix(in_srgb,var(--medbay-ok)_25%,black)]",
+                )}
+              >
+                {c.facePhoto ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={c.facePhoto} alt="" className="size-full object-cover" />
+                ) : (
+                  <AstronautIcon size={grid ? 56 : 26} className="text-foreground/70" />
+                )}
+              </div>
+              <div className={cn("min-w-0 px-3 py-2.5", !grid && "flex flex-1 items-center gap-4 py-0")}>
+                <div className="min-w-0">
+                  <div className="medbay-display truncate text-[14px]">{c.name}</div>
+                  <div className="medbay-micro text-foreground/60">
+                    {c.callsign} · {c.role}
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    "medbay-micro mt-1 inline-block",
+                    h === "health-critical" ? "text-critical" : h === "health-risk" ? "text-risk" : "text-ok",
+                    !grid && "ml-auto mt-0",
+                  )}
+                >
+                  {worst.status === "NOMINAL" ? "HEALTHY" : worst.status === "CRITICAL" ? "CRITICAL" : "RISK"}
+                </span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
   );
 }

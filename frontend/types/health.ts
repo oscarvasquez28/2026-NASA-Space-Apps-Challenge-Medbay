@@ -203,7 +203,11 @@ export type BackendTrendIndicator =
   | "blood_sugar_mg_dl"
   | "bone_mineral_density_t_score"
   | "visual_acuity_logmar"
-  | "mission_readiness_score";
+  | "mission_readiness_score"
+  | "sleep_hours"
+  | "systolic_bp_mmhg"
+  | "suit_pressure_kpa"
+  | "co2_partial_pressure_mmhg";
 
 export interface TrendPointBackend {
   timestamp: string;
@@ -462,12 +466,12 @@ export interface DatabaseSnapshotRestoreResponse {
 
 export type ViewMode = "high_level" | "technical";
 
-export type LocationId =
-  | "station"
-  | "spacecraft"
-  | "moon"
-  | "mars"
-  | "eva";
+/**
+ * MEDBAY locations (3 themes): station = "International Station" (purple),
+ * spacecraft = "Artemis II" / Ship (blue), mars = "Mars" / Ground (orange).
+ * Backend Moon / Rover-EVA settings fold into the Ground theme.
+ */
+export type LocationId = "station" | "spacecraft" | "mars";
 
 /* ---------- Body / anatomical zones ---------- */
 
@@ -633,7 +637,11 @@ export type TelemetryMetric =
   | "blood_sugar"
   | "bone_density"
   | "visual_acuity"
-  | "mission_readiness";
+  | "mission_readiness"
+  | "sleep"
+  | "systolic_bp"
+  | "suit_pressure"
+  | "cabin_co2";
 
 export interface TelemetryPoint {
   t: string;

@@ -80,17 +80,15 @@ import { MockHealthDataProvider } from "./mock-provider";
 const BACKEND_LOCATION_MAP: Record<LocationId, LocationSettingBackend> = {
   station: "Space Station [0g]",
   spacecraft: "Spacecraft [0g Transit]",
-  moon: "Moon [1/6g]",
   mars: "Mars [3/8g]",
-  eva: "Rover / EVA",
 };
 
 const FRONTEND_LOCATION_MAP: Record<string, LocationId> = {
   "Space Station [0g]": "station",
   "Spacecraft [0g Transit]": "spacecraft",
-  "Moon [1/6g]": "moon",
+  "Moon [1/6g]": "mars",
   "Mars [3/8g]": "mars",
-  "Rover / EVA": "eva",
+  "Rover / EVA": "mars",
 };
 
 const FRONT_TO_BACKEND_ZONE: Record<ZoneId, string> = {
@@ -113,6 +111,10 @@ const METRIC_TO_BACKEND_INDICATOR: Partial<
   bone_density: "bone_mineral_density_t_score",
   visual_acuity: "visual_acuity_logmar",
   mission_readiness: "mission_readiness_score",
+  sleep: "sleep_hours",
+  systolic_bp: "systolic_bp_mmhg",
+  suit_pressure: "suit_pressure_kpa",
+  cabin_co2: "co2_partial_pressure_mmhg",
 };
 
 const TREND_META: Record<
@@ -150,6 +152,22 @@ const TREND_META: Record<
   mission_readiness_score: {
     label: "Mission readiness score",
     band: { low: 75, high: 100, label: "FLIGHT READINESS TARGET" },
+  },
+  sleep_hours: {
+    label: "Sleep duration",
+    band: { low: 6, high: 10, label: "CREW RECOVERY BAND" },
+  },
+  systolic_bp_mmhg: {
+    label: "Systolic blood pressure",
+    band: { low: 90, high: 140, label: "CLINICAL REFERENCE BAND" },
+  },
+  suit_pressure_kpa: {
+    label: "Suit pressure",
+    band: { low: 26, high: 34, label: "EVA OPERATIONAL ENVELOPE" },
+  },
+  co2_partial_pressure_mmhg: {
+    label: "Cabin CO2 partial pressure",
+    band: { low: 0, high: 4, label: "SMAC OPERATIONAL LIMIT" },
   },
 };
 

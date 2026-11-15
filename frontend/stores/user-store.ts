@@ -5,7 +5,27 @@ import { persist } from "zustand/middleware";
 
 import { getAuthSessionState } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/config";
+import { DEFAULT_MASCOT, type MascotSkinId } from "@/data/mascots";
 import type { CheckInRecord, LocalUser, UserRole } from "@/types/health";
+
+/**
+ * Local-only per-operator profile extras (kept apart from `users`, which the
+ * backend session sync replaces wholesale).
+ */
+export interface OperatorExtras {
+  /** Profile picture override (upload or premade icon); face credential untouched. */
+  avatar?: string;
+  mascotSkins: MascotSkinId[];
+  equippedMascot: MascotSkinId;
+  /** Skins the operator has already looked at (hides the NEW SKIN star). */
+  seenMascots: MascotSkinId[];
+}
+
+export const DEFAULT_EXTRAS: OperatorExtras = {
+  mascotSkins: [DEFAULT_MASCOT],
+  equippedMascot: DEFAULT_MASCOT,
+  seenMascots: [DEFAULT_MASCOT],
+};
 
 /**
  * Operator profiles + daily check-in + idle lock state.
@@ -13,7 +33,8 @@ import type { CheckInRecord, LocalUser, UserRole } from "@/types/health";
  * `/api/v1/auth/*` and `face_credentials` when DATA_PROVIDER=rest.
  */
 
-export const WHEEL_EVERY_N = 5;
+/** Spec cadence; the live value comes from runtime-config (WHEEL_CADENCE_DAYS). */
+export const WHEEL_EVERY_N = 7;
 export const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
 
 const todayKey = () => {
@@ -31,7 +52,7 @@ interface UserState {
   users: LocalUser[];
   activeUserId: string | null;
   checkIns: CheckInRecord[];
-  /** Prize-drum spins already consumed (earned = floor(checkIns/WHEEL_EVERY_N)). */
+  /** Prize-drum spins already consumed (earned = one per 7-day streak). */
   wheelSpinsClaimed: number;
   /** Idle inactivity lock timeout in milliseconds (default 3 minutes). */
   idleTimeoutMs: number;
@@ -39,6 +60,7 @@ interface UserState {
   sessionLocked: boolean;
   /** Ephemeral captured photo held when camera sees an unrecognized face. */
   unrecognizedFacePhoto: string | null;
+  extras: Record<string, OperatorExtras>;
 
   hydrated: boolean;
 
@@ -60,6 +82,11 @@ interface UserState {
   setIdleTimeoutMs: (ms: number) => void;
   setSessionLocked: (locked: boolean) => void;
   setUnrecognizedFacePhoto: (photo: string | null) => void;
+  setAvatar: (userId: string, avatar: string | undefined) => void;
+  /** Unlocks a mascot skin; returns false when it was already owned. */
+  unlockMascot: (userId: string, id: MascotSkinId) => boolean;
+  equipMascot: (userId: string, id: MascotSkinId) => void;
+  markMascotSeen: (userId: string, id: MascotSkinId) => void;
   syncFromServer: (payload: {
     users: LocalUser[];
     checkIns: CheckInRecord[];
@@ -77,6 +104,7 @@ export const useUserStore = create<UserState>()(
       idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
       sessionLocked: false,
       unrecognizedFacePhoto: null,
+      extras: {},
       hydrated: false,
 
       addUser: (input) => {
@@ -161,6 +189,39 @@ export const useUserStore = create<UserState>()(
       setSessionLocked: (sessionLocked) => set({ sessionLocked }),
       setUnrecognizedFacePhoto: (unrecognizedFacePhoto) =>
         set({ unrecognizedFacePhoto }),
+      setAvatar: (userId, avatar) =>
+        set((s) => ({
+          extras: { ...s.extras, [userId]: { ...extrasOf(s.extras, userId), avatar } },
+        })),
+      unlockMascot: (userId, id) => {
+        const cur = extrasOf(get().extras, userId);
+        if (cur.mascotSkins.includes(id)) return false;
+        set((s) => ({
+          extras: { ...s.extras, [userId]: { ...cur, mascotSkins: [...cur.mascotSkins, id] } },
+        }));
+        return true;
+      },
+      equipMascot: (userId, id) =>
+        set((s) => {
+          const cur = extrasOf(s.extras, userId);
+          if (!cur.mascotSkins.includes(id)) return s;
+          return {
+            extras: {
+              ...s.extras,
+              [userId]: {
+                ...cur,
+                equippedMascot: id,
+                seenMascots: cur.seenMascots.includes(id) ? cur.seenMascots : [...cur.seenMascots, id],
+              },
+            },
+          };
+        }),
+      markMascotSeen: (userId, id) =>
+        set((s) => {
+          const cur = extrasOf(s.extras, userId);
+          if (cur.seenMascots.includes(id)) return s;
+          return { extras: { ...s.extras, [userId]: { ...cur, seenMascots: [...cur.seenMascots, id] } } };
+        }),
       syncFromServer: ({ users, checkIns }) =>
         set((s) => {
           const validActive =
@@ -187,6 +248,7 @@ export const useUserStore = create<UserState>()(
         checkIns: s.checkIns,
         wheelSpinsClaimed: s.wheelSpinsClaimed,
         idleTimeoutMs: s.idleTimeoutMs,
+        extras: s.extras,
       }),
     },
   ),
@@ -212,8 +274,55 @@ export function hydrateUserStore() {
   });
 }
 
+export function extrasOf(
+  extras: Record<string, OperatorExtras>,
+  userId: string | null | undefined,
+): OperatorExtras {
+  return (userId && extras[userId]) || DEFAULT_EXTRAS;
+}
+
+/** Unseen mascot skins → the yellow NEW SKIN star (spec §2, §7). */
+export function unseenMascots(x: OperatorExtras): MascotSkinId[] {
+  return x.mascotSkins.filter((id) => !x.seenMascots.includes(id));
+}
+
 export function userStore() {
   return useUserStore.getState();
+}
+
+/**
+ * Wheel milestones for one operator: one spin for every run of `everyN`
+ * consecutive check-in days (a gap resets progress toward the next bonus).
+ */
+export function earnedSpinsFor(
+  checkIns: CheckInRecord[],
+  userId: string,
+  everyN = WHEEL_EVERY_N,
+): number {
+  const days = new Set(
+    checkIns.filter((c) => c.userId === userId).map((c) => c.day),
+  );
+  let earned = 0;
+  for (const d of days) {
+    // Start counting a run at its first day, then hit a milestone every
+    // everyN-th day of that run.
+    if (!days.has(dayKeyFrom(d, -1))) {
+      let run = 0;
+      let cursor = d;
+      while (days.has(cursor)) {
+        run += 1;
+        if (run % everyN === 0) earned += 1;
+        cursor = dayKeyFrom(cursor, 1);
+      }
+    }
+  }
+  return earned;
+}
+
+function dayKeyFrom(day: string, offset: number) {
+  const [y, m, d2] = day.split("-").map(Number);
+  const dt = new Date(y, m - 1, d2 + offset);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
 /** Consecutive-day streak ending today (or yesterday if today is missing). */

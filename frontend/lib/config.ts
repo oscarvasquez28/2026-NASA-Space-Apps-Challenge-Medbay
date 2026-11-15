@@ -13,20 +13,30 @@
 export interface RuntimeConfig {
   apiUrl: string;
   dataProvider: "mock" | "rest";
+  /** Consecutive check-in days per wheel spin (spec 7; 1 for testing). */
+  wheelCadenceDays: number;
 }
 
 const FALLBACK_API_URL = "http://localhost:8080";
+const FALLBACK_WHEEL_CADENCE = 7;
 
 let cachedConfig: Promise<RuntimeConfig> | null = null;
+
+function cadence(raw: unknown): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : FALLBACK_WHEEL_CADENCE;
+}
 
 async function resolveConfig(): Promise<RuntimeConfig> {
   const inlinedUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
   const inlinedProvider = process.env.NEXT_PUBLIC_DATA_PROVIDER;
+  const inlinedCadence = process.env.NEXT_PUBLIC_WHEEL_CADENCE_DAYS;
 
   if (inlinedUrl) {
     return {
       apiUrl: inlinedUrl.replace(/\/+$/, ""),
       dataProvider: inlinedProvider === "mock" ? "mock" : "rest",
+      wheelCadenceDays: cadence(inlinedCadence),
     };
   }
 
@@ -40,6 +50,7 @@ async function resolveConfig(): Promise<RuntimeConfig> {
           data.dataProvider === "mock" || inlinedProvider === "mock"
             ? "mock"
             : "rest",
+        wheelCadenceDays: cadence(data.wheelCadenceDays ?? inlinedCadence),
       };
     }
   } catch {
@@ -49,6 +60,7 @@ async function resolveConfig(): Promise<RuntimeConfig> {
   return {
     apiUrl: FALLBACK_API_URL,
     dataProvider: inlinedProvider === "mock" ? "mock" : "rest",
+    wheelCadenceDays: cadence(inlinedCadence),
   };
 }
 

@@ -11,7 +11,7 @@ export const MISSION_NAME = "AURORA-9 · ISS EXPEDITION";
 export const LOCATION_PROFILES: LocationProfile[] = [
   {
     id: "station",
-    label: "Space Station",
+    label: "International Station",
     commLatencySec: 0.6,
     blackoutRisk: "LOW",
     linkMode: "advisory",
@@ -19,39 +19,35 @@ export const LOCATION_PROFILES: LocationProfile[] = [
   },
   {
     id: "spacecraft",
-    label: "Spacecraft (transit)",
+    label: "Artemis II",
     commLatencySec: 4.2,
     blackoutRisk: "MEDIUM",
     linkMode: "advisory",
     hazards: { radiation: 0.6, isolation: 0.55, gravity: 0.95, workload: 0.45 },
   },
   {
-    id: "moon",
-    label: "Moon surface",
-    commLatencySec: 1.3,
-    blackoutRisk: "MEDIUM",
-    linkMode: "advisory",
-    hazards: { radiation: 0.75, isolation: 0.6, gravity: 0.35, workload: 0.6 },
-  },
-  {
     id: "mars",
-    label: "Mars surface",
+    label: "Mars",
     commLatencySec: 272,
     blackoutRisk: "HIGH",
     linkMode: "local",
     hazards: { radiation: 0.8, isolation: 0.95, gravity: 0.5, workload: 0.7 },
   },
-  {
-    id: "eva",
-    label: "Rover / EVA",
-    commLatencySec: 2.1,
-    blackoutRisk: "MEDIUM",
-    linkMode: "local",
-    hazards: { radiation: 0.9, isolation: 0.5, gravity: 0.3, workload: 0.9 },
-  },
 ];
 
 export const DEFAULT_LOCATION: LocationId = "station";
+
+/** MEDBAY theme metadata per location (logo subtitle, toggle label, gravity). */
+export const LOCATION_THEME: Record<
+  LocationId,
+  { care: string; group: "Station" | "Ship" | "Ground"; tile: string; gravity: number }
+> = {
+  station: { care: "STATION CARE", group: "Station", tile: "International Station", gravity: 0 },
+  spacecraft: { care: "SHIP CARE", group: "Ship", tile: "Artemis II", gravity: 0 },
+  mars: { care: "GROUND CARE", group: "Ground", tile: "Mars", gravity: 0.38 },
+};
+
+export const LOCATION_IDS: LocationId[] = ["station", "spacecraft", "mars"];
 
 export function getLocationProfile(id: LocationId): LocationProfile {
   return (
