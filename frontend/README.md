@@ -76,10 +76,8 @@ A **local-only** session layer sits in front of the console:
 | Variable | Scope | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `NEXT_PUBLIC_API_URL` | Browser (build-time) | `http://localhost:8080` | Backend base URL. When unset, the client falls back to `/api/runtime-config`. |
-| `NEXT_PUBLIC_ASTRONAUT_IDS` | Browser (build-time) | `AST-01,AST-02,AST-03` | Comma-separated crew IDs. |
 | `NEXT_PUBLIC_DATA_PROVIDER` | Browser (build-time) | `mock` | `mock` (deterministic simulated data) or `rest` (real endpoints; missing surfaces delegate to labelled mocks, `partial`). |
 | `PUBLIC_API_URL` | Server (runtime) | `http://localhost:8080` | Backend URL returned by `GET /api/runtime-config` inside Docker Compose. |
-| `ASTRONAUT_IDS` | Server (runtime) | `AST-01,AST-02,AST-03` | Runtime override for the selector list in Docker. |
 | `DATA_PROVIDER` | Server (runtime) | `mock` | Runtime override of the provider in Docker. |
 
 `GET /api/runtime-config` lets the container image stay generic: change the

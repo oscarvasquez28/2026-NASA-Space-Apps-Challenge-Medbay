@@ -14,6 +14,7 @@ import {
   StatusChip,
 } from "@/components/ui/primitives";
 import { TelemetryLogger } from "@/components/widgets/TelemetryLogger";
+import { useCheckIn } from "@/hooks/useCheckIn";
 import { useCrew } from "@/hooks/useCrew";
 import { useProvider } from "@/hooks/useProvider";
 import { useAppStore } from "@/stores/app-store";
@@ -27,7 +28,10 @@ function LogInner() {
   const provider = useProvider();
   const viewMode = useAppStore((s) => s.viewMode);
   const { crew } = useCrew();
-  const [crewId, setCrewId] = useState(params.get("crew") ?? "AST-01");
+  const { activeUser } = useCheckIn();
+  const [crewId, setCrewId] = useState(
+    params.get("crew") ?? activeUser?.astronautId ?? "",
+  );
 
   const [queue, setQueue] = useState<TelemedicineSyncQueueResponse | null>(null);
   const [queueLoading, setQueueLoading] = useState(false);

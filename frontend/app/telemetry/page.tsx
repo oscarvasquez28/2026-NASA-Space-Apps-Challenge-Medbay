@@ -13,6 +13,7 @@ import { Eyebrow, Disclaimer } from "@/components/ui/primitives";
 import { ModelViewport } from "@/components/three/model-viewport";
 import { TrendsChart } from "@/components/widgets/TrendsChart";
 import { useBodyStatus } from "@/hooks/useBodyStatus";
+import { useCheckIn } from "@/hooks/useCheckIn";
 import { useTelemetry } from "@/hooks/useTelemetry";
 import { useAppStore } from "@/stores/app-store";
 import {
@@ -47,7 +48,8 @@ const OVERLAYS: { id: OverlayMode; label: string }[] = [
 
 function TelemetryInner() {
   const params = useSearchParams();
-  const crewId = params.get("crew") ?? "AST-01";
+  const { activeUser } = useCheckIn();
+  const crewId = params.get("crew") ?? activeUser?.astronautId ?? "";
   const viewMode = useAppStore((s) => s.viewMode);
   const technical = viewMode === "technical";
   const [metric, setMetric] = useState<TelemetryMetric>("heart_rate");

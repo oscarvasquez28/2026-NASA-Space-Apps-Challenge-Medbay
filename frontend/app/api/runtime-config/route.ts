@@ -3,11 +3,13 @@ import { NextResponse } from "next/server";
 /**
  * Runtime configuration for browser clients.
  *
- * Returns the public backend URL, the data-provider kind and astronaut
- * identifiers from server-side env vars so the Docker image stays
- * configurable at container start (`PUBLIC_API_URL`, `DATA_PROVIDER`,
- * `ASTRONAUT_IDS`) without a rebuild. `NEXT_PUBLIC_*` variables remain
- * available as build-time overrides for local development.
+ * Returns the public backend URL and the data-provider kind from server-side
+ * env vars so the Docker image stays configurable at container start
+ * (`PUBLIC_API_URL`, `DATA_PROVIDER`) without a rebuild. `NEXT_PUBLIC_*`
+ * variables remain available as build-time overrides for local development.
+ *
+ * Crew membership is NOT configurable — the roster is built from enrolled
+ * operators (`/register` + visual-ID check-in), keyed by `astronautId`.
  */
 export const dynamic = "force-dynamic";
 
@@ -23,14 +25,5 @@ export function GET() {
       ? "mock"
       : "rest";
 
-  const astronautIds = (
-    process.env.ASTRONAUT_IDS ??
-    process.env.NEXT_PUBLIC_ASTRONAUT_IDS ??
-    "AST-01,AST-02,AST-03,AST-04"
-  )
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-  return NextResponse.json({ apiUrl, dataProvider, astronautIds });
+  return NextResponse.json({ apiUrl, dataProvider });
 }

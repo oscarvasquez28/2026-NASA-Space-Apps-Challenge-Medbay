@@ -14,7 +14,6 @@ import { useMemo, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { MicroLabel } from "@/components/ui/primitives";
-import { DEFAULT_CREW_ID } from "@/data/crew";
 import {
   pickSkinOfRarity,
   rollDrumRarity,
@@ -24,6 +23,7 @@ import { useCheckIn } from "@/hooks/useCheckIn";
 import { claimOperatorWheelSpin, completeCheckup } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/config";
 import { useAppStore } from "@/stores/app-store";
+import { userStore } from "@/stores/user-store";
 import type { SkinDef } from "@/types/health";
 
 const SEG_COUNT = 12;
@@ -143,7 +143,7 @@ function DrumContent({
           });
         } else {
           await completeCheckup({
-            astronaut_id: DEFAULT_CREW_ID,
+            astronaut_id: userStore().users[0]?.astronautId ?? "AST-U00",
             completed_tasks: [],
             perform_gachapon_roll: false,
             unlock_skin_id: prize.skin.id,

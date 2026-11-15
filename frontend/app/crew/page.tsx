@@ -128,6 +128,24 @@ export default function CrewPage() {
               <Link key={c.id} href={`/crew/${c.id}`} className="card crew-card" style={{ display: "block" }}>
                 <div className="preview-box">
                   <GalleryPreview zones={c.zones} />
+                  {c.facePhoto && (
+                    // eslint-disable-next-line @next/next/no-img-element -- enrollment capture is a dataURL
+                    <img
+                      src={c.facePhoto}
+                      alt={`${c.name} enrollment capture`}
+                      style={{
+                        position: "absolute",
+                        bottom: 8,
+                        left: 8,
+                        zIndex: 6,
+                        width: 34,
+                        height: 34,
+                        objectFit: "cover",
+                        borderRadius: "50%",
+                        border: "1px solid var(--accent)",
+                      }}
+                    />
+                  )}
                   <div className="micro-8" style={{ position: "absolute", top: 8, left: 10, zIndex: 6 }}>
                     {c.id} · {c.mission}
                   </div>

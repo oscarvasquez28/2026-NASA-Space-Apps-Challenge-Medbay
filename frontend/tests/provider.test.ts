@@ -3,24 +3,52 @@
  * the same HealthDataProvider surface the REST provider implements.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { MockHealthDataProvider } from "@/services/mock-provider";
 import { RestHealthDataProvider } from "@/services/rest-provider";
-import type { TelemetryMetric, VitalSigns } from "@/types/health";
+import { useUserStore } from "@/stores/user-store";
+import type { LocalUser, TelemetryMetric, VitalSigns } from "@/types/health";
 
 const provider = new MockHealthDataProvider();
 
+// The roster is built from enrolled operators — seed two before assertions.
+const TEST_OPERATORS: LocalUser[] = [
+  {
+    id: "u_alpha",
+    name: "Cmdr. Test Alpha",
+    callsign: "ALPHA",
+    role: "medic",
+    facePhoto: "",
+    astronautId: "AST-01",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "u_beta",
+    name: "Spec. Test Beta",
+    callsign: "BETA",
+    role: "user",
+    facePhoto: "",
+    astronautId: "AST-02",
+    createdAt: "2026-01-02T00:00:00.000Z",
+  },
+];
+
+beforeAll(() => {
+  useUserStore.setState({ users: TEST_OPERATORS, activeUserId: "u_alpha" });
+});
+
 describe("MockHealthDataProvider", () => {
-  it("returns the curated crew roster", async () => {
+  it("returns a roster built from enrolled operators", async () => {
     const crew = await provider.getCrew();
-    expect(crew.length).toBeGreaterThanOrEqual(2);
+    expect(crew.length).toBe(TEST_OPERATORS.length);
     for (const member of crew) {
       expect(member.id).toMatch(/^AST-/);
       expect(member.zones.length).toBeGreaterThan(0);
       expect(member.readiness.score).toBeGreaterThanOrEqual(0);
       expect(member.readiness.score).toBeLessThanOrEqual(100);
     }
+    expect(crew.map((m) => m.id).sort()).toEqual(["AST-01", "AST-02"]);
   });
 
   it("resolves a single crew member with zones + vitals", async () => {

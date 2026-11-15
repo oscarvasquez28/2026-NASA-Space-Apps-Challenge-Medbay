@@ -10,7 +10,7 @@
  * so the 3D holographic scene and organ animations reflect live backend telemetry.
  */
 
-import { CREW, getCrewMember as getBaseCrewMember } from "@/data/crew";
+import { crewMemberFromOperator } from "@/data/crew";
 import { getSkinPalette } from "@/data/gamification";
 import { LOCATION_PROFILES, getLocationProfile as getBaseLocation } from "@/data/mission";
 import {
@@ -30,7 +30,7 @@ import {
   updateContextLocation,
   completeCheckup as apiCompleteCheckup,
 } from "@/lib/api";
-import { getRuntimeConfig } from "@/lib/config";
+import { userStore } from "@/stores/user-store";
 import type {
   AIChatResponse,
   AIInsight,
@@ -447,21 +447,26 @@ export class RestHealthDataProvider implements HealthDataProvider {
   }
 
   async getCrew(): Promise<CrewMember[]> {
-    const cfg = await getRuntimeConfig().catch(() => ({
-      astronautIds: CREW.map((c) => c.id),
-    }));
-    const ids =
-      cfg.astronautIds.length > 0 ? cfg.astronautIds : CREW.map((c) => c.id);
-
-    const results = await Promise.all(ids.map((id) => this.getCrewMember(id)));
+    // Only enrolled operators are mission crew — the visual-ID check-in is
+    // what places them aboard, so no pre-canned roster entries exist.
+    const users = userStore().users;
+    const results = await Promise.all(
+      users.map((u) => this.getCrewMember(u.astronautId)),
+    );
     return results.filter((m): m is CrewMember => m !== undefined);
   }
 
   async getCrewMember(id: string): Promise<CrewMember | undefined> {
-    const base = getBaseCrewMember(id);
-    if (!base) return undefined;
-    const status = await getAstronautBodyStatus(id);
-    return mapBodyStatusToCrewMember(base, status);
+    const user = userStore().users.find((u) => u.astronautId === id);
+    if (!user) return undefined;
+    const base = crewMemberFromOperator(user);
+    try {
+      const status = await getAstronautBodyStatus(id);
+      return mapBodyStatusToCrewMember(base, status);
+    } catch {
+      // Backend unreachable — render the operator's nominal baseline.
+      return base;
+    }
   }
 
   async getLocations(): Promise<LocationProfile[]> {

@@ -12,7 +12,7 @@
 
 ## Curated & Offline Datasets (`frontend/data/`)
 
-- `crew.ts` — baseline structural/biometric metadata + `ORGAN_WATCH` vital templates overlaid by `/api/v1/astronaut/body-status` in `rest` mode.
+- `crew.ts` — `baseZones()` nominal anatomical template + `crewMemberFromOperator()` factory that turns each enrolled operator (`user-store`, keyed by `astronautId`) into the monitored CrewMember; `/api/v1/astronaut/body-status` overlays live zone status in `rest` mode.
 - `suit-rig.ts` — EVA-suit skeleton (shoulders, arm abduction, hips; floor y = 0) shared by the suit geometry and the organ atlas.
 - `organs.ts` — `ORGANS` atlas (28 organs) + `organsOf(zoneId)` / `getOrgan(id)` / `zoneFraming(zoneId)` / `organStatus` / `organVitals`. Shared across crew; per-member status comes from that member's live zone vitals. Convention: the model faces +z, so **patient-left = +x** (`side: 1`).
   - head: brain (hemispheres + gyri, cerebellum, brainstem), eyes ×2 (iris/pupil, optic nerve, recti)

@@ -16,8 +16,10 @@ import {
 } from "recharts";
 
 import { Disclaimer, Eyebrow, StatusChip } from "@/components/ui/primitives";
+import { useCheckIn } from "@/hooks/useCheckIn";
 import { useCrew } from "@/hooks/useCrew";
 import { useAppStore } from "@/stores/app-store";
+import { useUserStore } from "@/stores/user-store";
 import type { CrewMember, TriageLevel } from "@/types/health";
 
 const ORDER: TriageLevel[] = ["NOMINAL", "CAUTION", "URGENT", "CRITICAL"];
@@ -50,8 +52,14 @@ export default function ComparePage() {
   const { crew, loading } = useCrew();
   const viewMode = useAppStore((s) => s.viewMode);
   const technical = viewMode === "technical";
-  const [idA, setIdA] = useState("AST-01");
-  const [idB, setIdB] = useState("AST-04");
+  const { activeUser } = useCheckIn();
+  const users = useUserStore((s) => s.users);
+  const [idA, setIdA] = useState(() => activeUser?.astronautId ?? "");
+  const [idB, setIdB] = useState(
+    () =>
+      users.find((u) => u.astronautId !== activeUser?.astronautId)
+        ?.astronautId ?? "",
+  );
 
   const a = crew.find((c) => c.id === idA);
   const b = crew.find((c) => c.id === idB);

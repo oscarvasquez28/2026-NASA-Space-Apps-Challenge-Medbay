@@ -25,7 +25,7 @@ import { useCrew } from "@/hooks/useCrew";
 import { useLocationContext } from "@/hooks/useLocationContext";
 import { useProvider } from "@/hooks/useProvider";
 import { useAppStore } from "@/stores/app-store";
-import { DEFAULT_CREW_ID, getCrewMember } from "@/data/crew";
+import { baseZones, crewMemberFromOperator } from "@/data/crew";
 
 const JOURNEY = [
   { n: "01", t: "Ingest", d: "Suit + biomonitor telemetry streams into the lab." },
@@ -40,12 +40,13 @@ export default function LabHome() {
   const { crew, loading } = useCrew();
   const { profile } = useLocationContext();
   const viewMode = useAppStore((s) => s.viewMode);
-  const activeGamificationId = activeUser?.astronautId ?? DEFAULT_CREW_ID;
+  const activeGamificationId = activeUser?.astronautId ?? "AST-U00";
   const hero =
-    crew.find((c) => c.id === DEFAULT_CREW_ID) ??
+    (activeUser && crew.find((c) => c.id === activeUser.astronautId)) ??
     crew[0] ??
-    getCrewMember(DEFAULT_CREW_ID)!;
-  const flagged = hero.zones.filter((z) => z.status !== "NOMINAL").length;
+    (activeUser ? crewMemberFromOperator(activeUser) : null);
+  const flagged = hero?.zones.filter((z) => z.status !== "NOMINAL").length ?? 0;
+  const heroZones = hero?.zones ?? baseZones();
 
   return (
     <SharedGallery>
@@ -62,7 +63,10 @@ export default function LabHome() {
             companion that points at what it describes.
           </p>
           <div style={{ display: "flex", gap: 10 }}>
-            <Link href={`/crew/${DEFAULT_CREW_ID}`} className="btn btn-primary">
+            <Link
+              href={hero ? `/crew/${hero.id}` : "/crew"}
+              className="btn btn-primary"
+            >
               Enter monitor →
             </Link>
             <Link href="/crew" className="btn">
@@ -81,7 +85,7 @@ export default function LabHome() {
 
         <div className="hero-canvas-wrap">
           <ViewerProvider>
-            <ModelViewport zones={hero.zones}>
+            <ModelViewport zones={heroZones}>
               <div className="viewer-scene-meta">EVA SUIT · TURNTABLE</div>
               <div className="viewer-bottom-left">drag to orbit</div>
             </ModelViewport>
@@ -96,7 +100,7 @@ export default function LabHome() {
             monitored zones
             <br />
             <span style={{ color: "var(--dim)" }}>
-              {hero.zones.length} active · {flagged} flagged
+              {heroZones.length} active · {flagged} flagged
             </span>
           </div>
         </div>
@@ -107,7 +111,7 @@ export default function LabHome() {
         {[
           { l: "CREW ON BOARD", v: String(crew.length || 4).padStart(2, "0"), u: "AST" },
           { l: "ENVIRONMENT", v: String(profile.gravityG ?? 0), u: "g" },
-          { l: "ZONES MONITORED", v: String(hero.zones.length).padStart(2, "0"), u: "CH" },
+          { l: "ZONES MONITORED", v: String(heroZones.length).padStart(2, "0"), u: "CH" },
           { l: "COMM LATENCY", v: String(profile.commLatencySec), u: "s" },
           {
             l: "LINK MODE",

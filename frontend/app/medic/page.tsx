@@ -14,6 +14,7 @@ import { Eyebrow, StatusDot } from "@/components/ui/primitives";
 import { ModelViewport } from "@/components/three/model-viewport";
 import { ChatPanel } from "@/components/widgets/ChatPanel";
 import { useBodyStatus } from "@/hooks/useBodyStatus";
+import { useCheckIn } from "@/hooks/useCheckIn";
 import { useCrew } from "@/hooks/useCrew";
 import { useProvider } from "@/hooks/useProvider";
 import { useAppStore } from "@/stores/app-store";
@@ -40,7 +41,10 @@ function MedicInner() {
   const provider = useProvider();
   const viewMode = useAppStore((s) => s.viewMode);
   const { crew } = useCrew();
-  const [crewId, setCrewId] = useState(params.get("crew") ?? "AST-01");
+  const { activeUser } = useCheckIn();
+  const [crewId, setCrewId] = useState(
+    params.get("crew") ?? activeUser?.astronautId ?? "",
+  );
   const { member } = useBodyStatus(crewId);
   const selectedZoneId = useViewerStore((s) => s.selectedZoneId);
   const focus = useViewerStore((s) => s.focus);

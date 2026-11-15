@@ -611,6 +611,8 @@ export interface CrewMember {
   checks: BioEntry[];
   insights: AIInsight[];
   readiness: ReadinessScore;
+  /** Operator enrollment photo (dataURL) — shown as avatar on roster cards. */
+  facePhoto?: string;
   /** Backend anatomical status metadata. */
   locationSetting?: string;
   overallStatus?: BackendStatus;

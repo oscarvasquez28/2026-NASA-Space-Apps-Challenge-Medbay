@@ -130,7 +130,6 @@ services:
       HOSTNAME: "0.0.0.0"
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
       INTERNAL_BACKEND_URL: http://backend:8080
-      ASTRONAUT_IDS: ${ASTRONAUT_IDS:-AST-01,AST-02,AST-03}
       DATA_PROVIDER: ${DATA_PROVIDER:-rest}
     depends_on:
       backend:

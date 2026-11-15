@@ -89,20 +89,44 @@ describe("procedural EVA suit", () => {
 
 describe("organ status", () => {
   it("flags only the organs whose watched vitals are off-nominal", async () => {
-    const { CREW } = await import("@/data/crew");
+    const { crewMemberFromOperator } = await import("@/data/crew");
     const { getOrgan, organStatus, organVitals } = await import("@/data/organs");
-    const novak = CREW.find((c) => c.id === "AST-04")!;
-    const chest = novak.zones.find((z) => z.id === "chest")!;
-    expect(chest.status).not.toBe("NOMINAL");
+    const member = crewMemberFromOperator({
+      id: "u_test",
+      name: "Test Operator",
+      role: "user",
+      facePhoto: "",
+      astronautId: "AST-U99",
+      createdAt: "",
+    });
+    const chest = member.zones.find((z) => z.id === "chest")!;
+    // push chest vitals off-nominal — heart/lungs watch these keys, trachea doesn't
+    chest.status = "URGENT";
+    chest.vitals = chest.vitals.map((v) =>
+      v.key === "heart_rate_bpm"
+        ? { ...v, value: 142, status: "URGENT" as const }
+        : v.key === "systolic_bp_mmhg"
+          ? { ...v, value: 148, status: "URGENT" as const }
+          : v.key === "spo2_percent"
+            ? { ...v, value: 91.8, status: "URGENT" as const }
+            : v,
+    );
     expect(organStatus(getOrgan("heart")!, chest)).not.toBe("NOMINAL");
     expect(organStatus(getOrgan("lung_r")!, chest)).not.toBe("NOMINAL");
     expect(organStatus(getOrgan("trachea")!, chest)).toBe("NOMINAL");
     // live zone reading replaces the curated organ value
     const hr = organVitals(getOrgan("heart")!, chest).find((v) => v.key === "heart_rate_bpm")!;
     expect(hr.value).toBe(chest.vitals.find((v) => v.key === "heart_rate_bpm")!.value);
-    const voss = CREW.find((c) => c.id === "AST-01")!;
-    const vossChest = voss.zones.find((z) => z.id === "chest")!;
-    expect(organStatus(getOrgan("heart")!, vossChest)).toBe("NOMINAL");
+    const nominalMember = crewMemberFromOperator({
+      id: "u_ok",
+      name: "Nominal Operator",
+      role: "user",
+      facePhoto: "",
+      astronautId: "AST-U98",
+      createdAt: "",
+    });
+    const freshChest = nominalMember.zones.find((z) => z.id === "chest")!;
+    expect(organStatus(getOrgan("heart")!, freshChest)).toBe("NOMINAL");
   });
 });
 

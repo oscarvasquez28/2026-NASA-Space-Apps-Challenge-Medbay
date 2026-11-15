@@ -11,7 +11,8 @@ import {
   COMPANION_SKINS,
   DAILY_CHECKLIST,
 } from "@/data/gamification";
-import { CREW, getCrewMember } from "@/data/crew";
+import { crewFromOperators, crewMemberFromOperator } from "@/data/crew";
+import { userStore } from "@/stores/user-store";
 import {
   DEFAULT_LOCATION,
   getLocationProfile,
@@ -38,6 +39,7 @@ import type {
   LocationContextUpdate,
   LocationId,
   LocationProfile,
+  LocalUser,
   LogAck,
   SkinDef,
   TelemedicineFlushRequest,
@@ -440,12 +442,13 @@ export class MockHealthDataProvider implements HealthDataProvider {
 
   async getCrew(): Promise<CrewMember[]> {
     await latency();
-    return CREW;
+    return crewFromOperators(userStore().users);
   }
 
   async getCrewMember(id: string): Promise<CrewMember | undefined> {
     await latency();
-    return getCrewMember(id);
+    const user = userStore().users.find((u) => u.astronautId === id);
+    return user ? crewMemberFromOperator(user) : undefined;
   }
 
   async getLocations(): Promise<LocationProfile[]> {
@@ -649,8 +652,17 @@ export class MockHealthDataProvider implements HealthDataProvider {
         reject(new DOMException("aborted", "AbortError"));
       });
     });
-    const member = getCrewMember(crewId) ?? CREW[0];
-    const base = respond(member, req);
+    const users = userStore().users;
+    const member: LocalUser = users.find((u) => u.astronautId === crewId) ??
+      users[0] ?? {
+        id: "usr_unassigned",
+        name: "Unassigned Operator",
+        role: "user",
+        facePhoto: "",
+        astronautId: crewId || "AST-U00",
+        createdAt: "",
+      };
+    const base = respond(crewMemberFromOperator(member), req);
     return {
       ...base,
       highLevel: base.message,

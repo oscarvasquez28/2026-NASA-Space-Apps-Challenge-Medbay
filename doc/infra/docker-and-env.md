@@ -25,7 +25,7 @@ The repository defines **four separate container services** in [`docker-compose.
    - Built from `frontend/Dockerfile` (`node:22-alpine` multi-stage, Next.js standalone output, non-root user `nextjs`, honors `PORT`/`HOSTNAME` → `0.0.0.0:8080`).
    - Exposes container port `8080` mapped to `${FRONTEND_PORT:-3000}` on the host.
    - Depends on `backend` (`condition: service_healthy`); healthcheck `wget`s `http://127.0.0.1:8080/` every 15s.
-   - Receives `PUBLIC_API_URL` (browser -> backend base URL, served to clients via `GET /api/runtime-config`), `INTERNAL_BACKEND_URL=http://backend:8080` (reserved for future server-side proxying), `ASTRONAUT_IDS` (selector list, runtime-configurable) and `DATA_PROVIDER` (`mock` | `rest` — which `HealthDataProvider` the UI activates).
+   - Receives `PUBLIC_API_URL` (browser -> backend base URL, served to clients via `GET /api/runtime-config`), `INTERNAL_BACKEND_URL=http://backend:8080` (reserved for future server-side proxying) and `DATA_PROVIDER` (`mock` | `rest` — which `HealthDataProvider` the UI activates). The crew roster is NOT env-configurable: it is built from enrolled operators (`/api/v1/auth/*` + visual-ID check-in), each keyed by `astronautId` and resolved via `GET /api/v1/astronaut/body-status`.
    - Loads optional `.env` and `frontend/.env` (`required: false`).
 
 ## Environment Templates
@@ -61,10 +61,8 @@ The repository defines **four separate container services** in [`docker-compose.
 | `FACE_MATCH_THRESHOLD` | `0.363` | Backend | Minimum cosine similarity required to match a face in `face_credentials` |
 | `FRONTEND_PORT` | `3000` | Compose | Host port mapped to frontend container `:8080` |
 | `PUBLIC_API_URL` | `http://localhost:8080` | Frontend | Public backend URL served to browsers via `GET /api/runtime-config` |
-| `ASTRONAUT_IDS` | `AST-01,AST-02,AST-03` | Frontend | Runtime astronaut selector list (no roster endpoint exists) |
 | `DATA_PROVIDER` | `rest` | Frontend | `rest` = default full FastAPI Phase 1–4 integration (`partial: false`); `mock` = deterministic offline dataset for isolated dev/tests |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Frontend (build-time) | Inlined backend URL for local `next dev` / static builds (see `frontend/.env.example`) |
-| `NEXT_PUBLIC_ASTRONAUT_IDS` | `AST-01,AST-02,AST-03,AST-04` | Frontend (build-time) | Inlined selector list for local `next dev` |
 | `NEXT_PUBLIC_DATA_PROVIDER` | `rest` | Frontend (build-time) | Inlined provider selection (`rest` default, `mock` override) for local `next dev` |
 | `TRIAGE_MODE` | `deterministic` | Backend | `deterministic` \| `hybrid` \| `ai_advisory` |
 | `GEMINI_API_KEY` | `""` | Backend | Optional Gemini API key (never commit real key) |
